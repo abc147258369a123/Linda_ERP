@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="步进驱动模块">
+  <rect width="160" height="120" rx="8" fill="#f3f7fa"/>
+  <g fill="none" stroke="#38657c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+    <rect x="46" y="34" width="68" height="52" rx="3" fill="#e6eef2"/>
+    <rect x="58" y="44" width="44" height="32" rx="2" fill="#d9e6ec"/>
+    <path d="M52 34v-10M62 34v-10M72 34v-10M82 34v-10M92 34v-10M102 34v-10" stroke="#9db8c6"/>
+    <path d="M58 86v8M70 86v8M82 86v8M94 86v8M106 86v8"/>
+    <text x="48" y="110" font-family="monospace" font-size="10" fill="#5b7686" stroke="none">TMC2209</text>
+  </g>
+</svg>

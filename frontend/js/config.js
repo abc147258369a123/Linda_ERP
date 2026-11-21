@@ -1,0 +1,94 @@
+/**
+ * 全局配置：应用信息、角色、导航、字典
+ * 说明：ERP.base / ERP.url() 让页面在 http:// 与 file:// 两种打开方式下都能正确跳转。
+ */
+(function () {
+  'use strict';
+  window.ERP = window.ERP || {};
+
+  var script = document.currentScript;
+  var base = './';
+  if (script && script.src) {
+    var i = script.src.indexOf('/js/config.js');
+    if (i >= 0) base = script.src.slice(0, i + 1);
+  }
+  ERP.base = base;
+
+  ERP.url = function (path) {
+    return ERP.base + String(path).replace(/^\.?\//, '');
+  };
+
+  ERP.config = {
+    appName: '硬件物料台账',
+    clubName: '校内硬件社团',
+    appDesc: '轻量化 ERP · 回收元器件统一台账',
+    version: 'v1.0.0',
+
+    /** 开发期自动刷新（js/dev-reload.js 使用）。树莓派正式部署前改为 false */
+    dev: true,
+
+    storageKey: 'erp.v1',
+    schema: 2,
+
+    roles: {
+      super: { label: '超级管理员', short: '超管' },
+      admin: { label: '管理员', short: '管理员' },
+      member: { label: '普通成员', short: '成员' }
+    },
+
+    /** 前端模拟登录：角色由登录页选择，密码与真实校验后续交给后端 */
+    demoAccounts: {
+      super: { account: 'superadmin', password: 'super123', label: '超级管理员', name: '周明' },
+      admin: { account: 'admin', password: 'admin123', label: '管理员', name: '林晨' },
+      member: { account: 'member', password: 'member123', label: '普通成员', name: '王浩' }
+    },
+
+    modeLabels: { simple: '简易模式', precise: '精确计数' },
+    statusLabels: { available: '有货', empty: '空' },
+    actionLabels: { borrow: '领用', empty: '标记为空', restock: '补货', create: '建档' },
+    actionTones: { borrow: 'tag-brand', empty: 'tag-empty', restock: 'tag-ok', create: 'tag-simple' },
+
+    /** 侧边导航；roles 为可见角色，缺省 = 全部角色 */
+    nav: [
+      {
+        group: '概览',
+        items: [
+          { id: 'dashboard', label: '工作台', href: 'dashboard.html', icon: 'dashboard' }
+        ]
+      },
+      {
+        group: '物料',
+        items: [
+          { id: 'materials', label: '物料总览', href: 'index.html', icon: 'grid' },
+          { id: 'material-new', label: '新增物料', href: 'pages/material-new.html', icon: 'plus', roles: ['admin'] },
+          { id: 'borrow', label: '领用登记', href: 'pages/borrow.html', icon: 'out' }
+        ]
+      },
+      {
+        group: '记录',
+        items: [
+          { id: 'logs', label: '领用日志', href: 'pages/logs.html', icon: 'list' }
+        ]
+      },
+      {
+        group: '管理',
+        items: [
+          { id: 'alerts', label: '库存预警', href: 'pages/alerts.html', icon: 'alert', roles: ['admin'] },
+          { id: 'categories', label: '分类管理', href: 'pages/categories.html', icon: 'tag', roles: ['admin'] },
+          { id: 'users', label: '用户管理', href: 'pages/users.html', icon: 'users', roles: ['admin'] }
+        ]
+      }
+    ],
+
+    pageTitles: {
+      dashboard: '工作台',
+      materials: '物料总览',
+      'material-new': '新增物料',
+      borrow: '领用登记',
+      logs: '领用日志',
+      alerts: '库存预警',
+      categories: '分类管理',
+      users: '用户管理'
+    }
+  };
+})();

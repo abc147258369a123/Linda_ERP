@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="OLED 显示屏">
+  <rect width="160" height="120" rx="8" fill="#f3f7fa"/>
+  <g fill="none" stroke="#38657c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+    <rect x="38" y="30" width="84" height="56" rx="4" fill="#e3edf2"/>
+    <rect x="46" y="38" width="68" height="40" rx="2" fill="#1f3a47"/>
+    <path d="M54 50h26M54 58h40M54 66h18" stroke="#9fd3c7"/>
+    <path d="M46 86h68"/>
+    <text x="48" y="108" font-family="monospace" font-size="10" fill="#5b7686" stroke="none">0.96"</text>
+  </g>
+</svg>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="排针">
+  <rect width="160" height="120" rx="8" fill="#f3f7fa"/>
+  <g fill="none" stroke="#38657c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+    <path d="M34 46h92M34 60h92"/>
+    <path d="M40 60v14M52 60v14M64 60v14M76 60v14M88 60v14M100 60v14M112 60v14" stroke-width="2.6"/>
+    <path d="M40 34v12M52 34v12M64 34v12M76 34v12M88 34v12M100 34v12M112 34v12"/>
+    <text x="44" y="104" font-family="monospace" font-size="10" fill="#5b7686" stroke="none">2.54mm</text>
+  </g>
+</svg>

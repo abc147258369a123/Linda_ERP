@@ -1,0 +1,26 @@
+# 统一换行与文本属性
+* text=auto
+
+# 源码文本
+*.html text
+*.css text
+*.js text eol=lf
+*.md text
+*.sql text
+
+# 脚本
+*.ps1 text
+*.sh text eol=lf
+
+# 图片二进制
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+
+# Office 文件（如有导出示例）
+*.xlsx binary
+*.docx binary
+*.pptx binary

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="蓝牙串口模块">
+  <rect width="160" height="120" rx="8" fill="#f3f7fa"/>
+  <g fill="none" stroke="#38657c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+    <circle cx="80" cy="60" r="34" fill="#e8f0f4"/>
+    <path d="M80 30v60l22-16-44-28 44-28-22-16" stroke-width="2.4"/>
+    <text x="56" y="112" font-family="monospace" font-size="10" fill="#5b7686" stroke="none">HC-05</text>
+  </g>
+</svg>

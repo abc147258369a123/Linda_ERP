@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="温湿度传感器">
+  <rect width="160" height="120" rx="8" fill="#f3f7fa"/>
+  <g fill="none" stroke="#38657c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+    <rect x="46" y="26" width="68" height="64" rx="4" fill="#e6eef2"/>
+    <g fill="#9db8c6" stroke="none">
+      <circle cx="60" cy="42" r="2"/><circle cx="72" cy="42" r="2"/><circle cx="84" cy="42" r="2"/><circle cx="96" cy="42" r="2"/>
+      <circle cx="60" cy="54" r="2"/><circle cx="72" cy="54" r="2"/><circle cx="84" cy="54" r="2"/><circle cx="96" cy="54" r="2"/>
+      <circle cx="60" cy="66" r="2"/><circle cx="72" cy="66" r="2"/><circle cx="84" cy="66" r="2"/><circle cx="96" cy="66" r="2"/>
+      <circle cx="60" cy="78" r="2"/><circle cx="72" cy="78" r="2"/><circle cx="84" cy="78" r="2"/><circle cx="96" cy="78" r="2"/>
+    </g>
+    <path d="M52 90v8M64 90v8M76 90v8M88 90v8M100 90v8"/>
+    <text x="52" y="112" font-family="monospace" font-size="10" fill="#5b7686" stroke="none">DHT22</text>
+  </g>
+</svg>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="物料图片">
+  <rect width="160" height="120" rx="8" fill="#f3f7fa"/>
+  <g fill="none" stroke="#38657c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+    <rect x="46" y="34" width="68" height="52" rx="4" fill="#e6eef2"/>
+    <path d="M60 60h40M60 70h24"/>
+    <path d="M56 88v6M104 88v6"/>
+    <text x="56" y="110" font-family="monospace" font-size="10" fill="#5b7686" stroke="none">MATERIAL</text>
+  </g>
+</svg>

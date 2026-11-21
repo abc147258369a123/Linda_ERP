@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="杜邦线">
+  <rect width="160" height="120" rx="8" fill="#f3f7fa"/>
+  <g fill="none" stroke="#38657c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+    <path d="M38 44c20 0 20 32 40 32s20-32 40-32"/>
+    <path d="M38 56c20 0 24 24 42 24s22-24 42-24"/>
+    <path d="M38 68c20 0 28 16 44 16s24-16 42-16"/>
+    <path d="M112 38h14v24h-14Z" fill="#e6eef2"/>
+    <text x="42" y="112" font-family="monospace" font-size="10" fill="#5b7686" stroke="none">DUPONT</text>
+  </g>
+</svg>

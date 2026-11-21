@@ -1,0 +1,52 @@
+# =========================================================
+# Linda_ERP · Git 忽略规则
+# =========================================================
+
+# 依赖
+node_modules/
+frontend/node_modules/
+.pnpm-store/
+.npm/
+
+# DSH / 本地开发缓存
+.dsh-tmp/
+.cache/
+.cache-loader/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# 本地数据库（后端阶段使用 SQLite / 备份不提交）
+db/*.db
+db/*.sqlite
+db/*.sqlite3
+db/*.db-journal
+db/*.db-wal
+db/*.db-shm
+db/backups/*
+!db/backups/.gitkeep
+
+# 日志
+*.log
+logs/
+
+# 环境配置与密钥
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 临时文件
+*.tmp
+*.bak
+*.swp

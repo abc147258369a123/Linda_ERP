@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="继电器模块">
+  <rect width="160" height="120" rx="8" fill="#f3f7fa"/>
+  <g fill="none" stroke="#38657c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+    <rect x="36" y="28" width="88" height="60" rx="4" fill="#e6eef2"/>
+    <rect x="48" y="40" width="34" height="36" rx="3" fill="#d9e6ec"/>
+    <path d="M96 46h16M96 58h16M96 70h16"/>
+    <path d="M42 88v6M58 88v6M74 88v6M90 88v6M106 88v6"/>
+    <text x="52" y="110" font-family="monospace" font-size="10" fill="#5b7686" stroke="none">5V RELAY</text>
+  </g>
+</svg>

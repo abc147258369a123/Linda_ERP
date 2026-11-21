@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="18650 锂电池">
+  <rect width="160" height="120" rx="8" fill="#f3f7fa"/>
+  <g fill="none" stroke="#38657c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+    <rect x="52" y="28" width="56" height="64" rx="8" fill="#e6eef2"/>
+    <rect x="70" y="22" width="20" height="8" rx="2" fill="#d9e6ec"/>
+    <path d="M70 46h20M80 36v20"/>
+    <path d="M64 100h32" stroke="#9db8c6"/>
+    <text x="48" y="114" font-family="monospace" font-size="10" fill="#5b7686" stroke="none">18650</text>
+  </g>
+</svg>

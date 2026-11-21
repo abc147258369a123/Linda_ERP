@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="热缩管">
+  <rect width="160" height="120" rx="8" fill="#f3f7fa"/>
+  <g fill="none" stroke="#38657c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+    <path d="M44 34h72M44 48h72M44 62h72"/>
+    <path d="M44 34v-8h72v8M44 48v-8M44 62v-8" stroke="#9db8c6"/>
+    <path d="M116 34v14M116 48v14M116 62v14" stroke="#9db8c6"/>
+    <path d="M44 76h72v18H44z" fill="#e6eef2"/>
+    <text x="44" y="110" font-family="monospace" font-size="10" fill="#5b7686" stroke="none">HEAT SHRINK</text>
+  </g>
+</svg>

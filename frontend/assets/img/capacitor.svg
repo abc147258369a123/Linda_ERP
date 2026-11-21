@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="电解电容">
+  <rect width="160" height="120" rx="8" fill="#f3f7fa"/>
+  <g fill="none" stroke="#38657c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+    <path d="M62 26v14M92 26v14M62 80v14M92 80v14"/>
+    <rect x="52" y="40" width="50" height="40" rx="6" fill="#e6eef2"/>
+    <path d="M52 52h-8M52 68h-8" stroke="#9db8c6"/>
+    <path d="M102 40v40" stroke="#9db8c6" stroke-dasharray="4 4"/>
+    <text x="48" y="106" font-family="monospace" font-size="10" fill="#5b7686" stroke="none">100μF</text>
+  </g>
+</svg>

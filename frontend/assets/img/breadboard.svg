@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="面包板">
+  <rect width="160" height="120" rx="8" fill="#f3f7fa"/>
+  <g fill="none" stroke="#38657c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+    <rect x="26" y="34" width="108" height="52" rx="4" fill="#e8f0f4"/>
+    <g fill="#9db8c6" stroke="none">
+      <circle cx="40" cy="46" r="1.8"/><circle cx="52" cy="46" r="1.8"/><circle cx="64" cy="46" r="1.8"/><circle cx="76" cy="46" r="1.8"/><circle cx="88" cy="46" r="1.8"/><circle cx="100" cy="46" r="1.8"/><circle cx="112" cy="46" r="1.8"/><circle cx="124" cy="46" r="1.8"/>
+      <circle cx="40" cy="62" r="1.8"/><circle cx="52" cy="62" r="1.8"/><circle cx="64" cy="62" r="1.8"/><circle cx="76" cy="62" r="1.8"/><circle cx="88" cy="62" r="1.8"/><circle cx="100" cy="62" r="1.8"/><circle cx="112" cy="62" r="1.8"/><circle cx="124" cy="62" r="1.8"/>
+      <circle cx="40" cy="74" r="1.8"/><circle cx="52" cy="74" r="1.8"/><circle cx="64" cy="74" r="1.8"/><circle cx="76" cy="74" r="1.8"/><circle cx="88" cy="74" r="1.8"/><circle cx="100" cy="74" r="1.8"/><circle cx="112" cy="74" r="1.8"/><circle cx="124" cy="74" r="1.8"/>
+    </g>
+    <path d="M26 56h108" stroke="#9db8c6"/>
+    <text x="44" y="106" font-family="monospace" font-size="10" fill="#5b7686" stroke="none">400 HOLES</text>
+  </g>
+</svg>

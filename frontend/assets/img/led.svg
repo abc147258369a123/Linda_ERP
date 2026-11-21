@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="LED 发光二极管">
+  <rect width="160" height="120" rx="8" fill="#f3f7fa"/>
+  <g fill="none" stroke="#38657c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+    <path d="M62 76v14M92 76v14M62 90h-10M92 90h10"/>
+    <path d="M58 76c-10-10-14-20-14-28a30 30 0 0 1 66 0c0 8-4 18-14 28Z" fill="#e8f0f4"/>
+    <path d="M74 44l8 14M88 40l6 12" stroke="#9db8c6"/>
+    <text x="60" y="112" font-family="monospace" font-size="10" fill="#5b7686" stroke="none">LED</text>
+  </g>
+</svg>

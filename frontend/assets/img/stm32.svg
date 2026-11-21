@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="STM32 最小系统板">
+  <rect width="160" height="120" rx="8" fill="#f3f7fa"/>
+  <g fill="none" stroke="#38657c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+    <rect x="42" y="30" width="76" height="60" rx="3" fill="#e3eef4"/>
+    <rect x="66" y="46" width="28" height="28" rx="2" fill="#d8e7ee"/>
+    <path d="M66 46v-5M74 46v-5M82 46v-5M90 46v-5"/>
+    <path d="M66 74v5M74 74v5M82 74v5M90 74v5"/>
+    <path d="M50 38h4M50 46h4M50 54h4M50 62h4M50 70h4M50 78h4"/>
+    <path d="M106 38h4M106 46h4M106 54h4M106 62h4M106 70h4M106 78h4"/>
+    <text x="54" y="108" font-family="monospace" font-size="10" fill="#5b7686" stroke="none">STM32</text>
+  </g>
+</svg>

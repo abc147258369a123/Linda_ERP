@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="洞洞板">
+  <rect width="160" height="120" rx="8" fill="#f3f7fa"/>
+  <g fill="none" stroke="#38657c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+    <rect x="34" y="30" width="92" height="60" rx="3" fill="#e8f0f4"/>
+    <g fill="#9db8c6" stroke="none">
+      <circle cx="48" cy="44" r="1.8"/><circle cx="64" cy="44" r="1.8"/><circle cx="80" cy="44" r="1.8"/><circle cx="96" cy="44" r="1.8"/><circle cx="112" cy="44" r="1.8"/>
+      <circle cx="48" cy="60" r="1.8"/><circle cx="64" cy="60" r="1.8"/><circle cx="80" cy="60" r="1.8"/><circle cx="96" cy="60" r="1.8"/><circle cx="112" cy="60" r="1.8"/>
+      <circle cx="48" cy="76" r="1.8"/><circle cx="64" cy="76" r="1.8"/><circle cx="80" cy="76" r="1.8"/><circle cx="96" cy="76" r="1.8"/><circle cx="112" cy="76" r="1.8"/>
+    </g>
+    <path d="M80 44v32M48 60h64" stroke="#9db8c6"/>
+    <text x="46" y="108" font-family="monospace" font-size="10" fill="#5b7686" stroke="none">5×7cm</text>
+  </g>
+</svg>
