@@ -1,0 +1,78 @@
+name: linda_erp
+
+# 说明：
+# - 后端使用 host 网络：uvicorn 只绑定 127.0.0.1:8000，对外不可直接访问
+#   （host 网络下由 uvicorn 直接监听回环，无需 ports 映射；Nginx 在宿主机反代到 127.0.0.1:8000）
+# - 数据库端口只发布到 127.0.0.1，供宿主 Nginx / 本机工具使用
+# - 镜像与 pip 源支持国内镜像前缀，通过 .env 的 IMAGE_PREFIX / PIP_INDEX_URL 控制
+
+services:
+  mariadb:
+    image: ${IMAGE_PREFIX:-}mariadb:10.11
+    container_name: linda_erp_db
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max-connections=150
+      - --innodb-buffer-pool-size=${DB_INNODB_BUFFER_POOL:-1G}
+      - --innodb-log-file-size=256M
+      - --slow-query-log=1
+      - --long-query-time=2
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?请先在 .env 中设置 DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${DB_NAME:-linda_erp}
+      MARIADB_USER: ${DB_USER:-linda_erp}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?请先在 .env 中设置 DB_PASSWORD}
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      - "127.0.0.1:${DB_PUBLISH_PORT:-3306}:3306"
+    volumes:
+      - ./data/mariadb:/var/lib/mysql
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    mem_limit: 2g
+    memswap_limit: 2g
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -uroot -p$$MARIADB_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  backend:
+    build:
+      context: ./backend
+      args:
+        BASE_IMAGE: ${IMAGE_PREFIX:-}python:3.12-slim-bookworm
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+    image: linda_erp-backend:1.0.0
+    container_name: linda_erp_backend
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      APP_HOST: 127.0.0.1
+      APP_PORT: "8000"
+      DB_HOST: 127.0.0.1
+      DB_PORT: ${DB_PUBLISH_PORT:-3306}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - ./data/uploads:/app/uploads
+      - ./data/logs:/app/logs
+    mem_limit: 4g
+    memswap_limit: 4g
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "30m"
+        max-file: "5"

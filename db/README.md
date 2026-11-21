@@ -1,34 +1,40 @@
-# db · 数据库相关文件
+# db · 数据库相关文件（MariaDB 10.11）
 
-当前阶段为纯前端演示，数据保存在浏览器 `localStorage`。后续阶段**只接入数据库，不开发独立后端服务**（由数据库/接口服务直接提供数据读写）。
+后端已实现，数据库使用 **MariaDB 10.11**，不使用 SQL Server / Oracle / Elasticsearch。
 
-## 规划
+## 目录
 
-| 数据 | 前端 localStorage 键 | 数据库表（规划） |
-| --- | --- | --- |
-| 物料档案 | `erp.v1.data` → `materials` | `materials` |
-| 物料分类 | `erp.v1.data` → `categories` | `categories` |
-| 领用 / 补货 / 标记为空日志 | `erp.v1.data` → `logs` | `material_logs` |
-| 用户与角色 | `erp.v1.data` → `users` | `users` |
-| 成员访问记录 | `erp.v1.visits` | `user_visits` |
-| 物料使用车（会话级） | `erp.v1.cart` | 可不入库，或 `cart_items` |
+| 文件 | 说明 |
+| --- | --- |
+| `init/01_schema.sql` | 建表 SQL（用户、分类、物料、入库单、出库单、物料流水、访问记录） |
+| `init/02_seed.sql` | 初始基础数据（9 个物料分类） |
+| `backups/` | 本地备份目录（已 gitignore） |
 
-## 建议表结构要点
+## 自动初始化
 
-- `categories(id, name)`
-- `materials(id, category_id, name, model, package, spec, brand, mode, qty, min_qty, status, cabinet, slot, source, inbound_at, image, note, created_at, updated_at)`
-  - `mode`：`simple` / `precise`
-  - 精确计数模式 `qty` 有效；简易模式忽略 `qty`
-- `users(id, account, name, role, note, created_at)`
-  - `role`：`super` / `admin` / `member`
-- `material_logs(id, material_id, action, qty, borrower, borrow_at, project, operator, note, created_at)`
-  - `action`：`borrow` / `restock` / `empty`
-- `user_visits(id, user_id, account, name, role, visited_at)`
+`db/init/` 会挂载到 MariaDB 容器的 `/docker-entrypoint-initdb.d`，**仅在 `./data/mariadb` 首次为空时执行**。修改 SQL 后如需重建：
 
-## 目录约定
+```bash
+docker compose down
+sudo rm -rf data/mariadb
+docker compose up -d
+```
 
-- 本目录存放数据库 schema、初始化脚本、种子数据与备份：
-  - `schema.sql`（待补充）
-  - `seed.sql`（待补充）
-  - `backups/`（本地备份，已被 .gitignore 忽略）
-- 不在此目录生成 Node / Java / Python 等后端服务代码。
+> 管理员账号不写死在 SQL 中，使用 `python -m app.cli create-admin` 以 bcrypt 哈希创建，避免明文密码。
+
+## 表结构要点
+
+- `users`：`role` = `super` / `admin` / `member`；`password_hash` 为 bcrypt（禁止明文）
+- `materials`：`mode` = `simple`（只记录有货/空）或 `precise`（记录 `qty`、`min_qty`）
+- `stock_in_orders` / `stock_in_items`：入库单
+- `stock_out_orders` / `stock_out_items`：出库单（`borrow` / `empty` / `adjust`）
+- `material_logs`：只追加的物料流水（`borrow` / `restock` / `empty` / `adjust`）
+- `user_visits`：登录访问记录（超级管理员通知面板）
+
+## 备份
+
+```bash
+docker compose exec -T mariadb mariadb-dump \
+  -uroot -p"$DB_ROOT_PASSWORD" --single-transaction linda_erp \
+  > data/backups/linda_erp_$(date +%F).sql
+```

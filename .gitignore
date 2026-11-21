@@ -5,17 +5,13 @@
 # 依赖
 node_modules/
 frontend/node_modules/
+backend/.venv/
+.venv/
 .pnpm-store/
 .npm/
 
-# DSH / 本地开发缓存
-.dsh-tmp/
-.cache/
-.cache-loader/
-dist/
-build/
-coverage/
-*.tsbuildinfo
+# 运行时数据（数据库 / 上传 / 日志 / 备份）
+data/
 
 # 本地数据库（后端阶段使用 SQLite / 备份不提交）
 db/*.db
@@ -26,6 +22,23 @@ db/*.db-wal
 db/*.db-shm
 db/backups/*
 !db/backups/.gitkeep
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# DSH / 本地开发缓存
+.dsh-tmp/
+.cache/
+.cache-loader/
+dist/
+build/
+coverage/
+*.tsbuildinfo
 
 # 日志
 *.log
