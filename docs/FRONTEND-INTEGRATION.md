@@ -51,8 +51,11 @@ ERP.config.apiBase = (function () {
 | `store.stockOutOrders / stockOutDetail` | `/api/stock-out` |
 | `store.fetchMaterialLogs(id)` | `/api/materials/{id}/logs` |
 | `store.visits()` | `/api/visits`（超级管理员） |
+| 工作台 KPI / 趋势图 | `/api/dashboard/summary?period=week\|month\|quarter\|half\|year\|all` |
 
 ## 4. 已接入的页面
+
+- 工作台：KPI 与趋势图由 `/api/dashboard/summary` 从 MariaDB 实时聚合，15 秒自动刷新，窗口重新获得焦点时也会刷新
 
 - 登录页：真实账号密码 + JWT
 - 工作台：物料统计、低库存、分类占比、领用排行、最近流水、出入库趋势（基于真实日志）

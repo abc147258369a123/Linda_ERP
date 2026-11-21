@@ -254,7 +254,8 @@ docker compose exec -T backend python -m app.cli list-users
 | GET | `/api/inventory` | 登录 | 库存查询（搜索 / 模式 / 状态 / 分类 / 低库存） |
 | GET | `/api/inventory/warnings` | 管理员+ | 低库存预警 |
 | GET | `/api/inventory/logs` | 登录 | 流水日志（关键词 / 类型 / 分类 / 日期） |
-| GET | `/api/inventory/stats` | 登录 | 工作台统计 |
+| GET | `/api/inventory/stats` | 登录 | 工作台库存统计 |
+| GET | `/api/dashboard/summary?period=` | 登录 | 工作台 KPI 与进出库趋势（MariaDB 实时聚合） |
 | POST | `/api/uploads` | 管理员+ | 上传物料图片（≤10MB） |
 | GET | `/api/health` | 公开 | 健康检查（含数据库连通） |
 

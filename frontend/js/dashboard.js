@@ -8,7 +8,7 @@
  *
  * 数据说明：
  *   - KPI 与趋势图为前端模拟（种子随机 + 周期参数），切换统计周期同步变化；
- *   - 物料总种类、分类占比、库存预警、最近进出库记录取自演示物料档案 / 领用日志；
+ *   - KPI / 趋势来自 /api/dashboard/summary（MariaDB 实时聚合），其余数据来自 API 缓存；
  *   - 图表使用 CDN 引入的 Chart.js，加载失败时降级为提示文案。
  */
 (async function () {
@@ -42,80 +42,13 @@
     return labels;
   }
 
-  function lcg(seed) {
-    var value = seed >>> 0;
-    return function () {
-      value = (value * 1664525 + 1013904223) >>> 0;
-      return value / 4294967296;
-    };
-  }
-
-  function makeSeries(config, length) {
-    var random = lcg(config.seed);
-    var series = [];
-    for (var i = 0; i < length; i++) {
-      var value = config.base + Math.sin((i + 0.5) / 1.7) * config.wave +
-        (random() - 0.5) * config.wave;
-      series.push(Math.max(0, Math.round(value)));
-    }
-    return series;
-  }
-
-  function sum(list) {
-    var total = 0;
-    for (var i = 0; i < list.length; i++) total += list[i];
-    return total;
-  }
-
   var PERIODS = {
-    all: {
-      key: 'all', label: '全部累积', deltaLabel: '历史数据',
-      labels: MONTH_LABELS,
-      inbound: { base: 24, wave: 9, seed: 101 },
-      outbound: { base: 68, wave: 26, seed: 211 },
-      types: stats.total,
-      deltas: null
-    },
-    week: {
-      key: 'week', label: '本周', deltaLabel: '较上周',
-      labels: WEEK_LABELS,
-      inbound: { base: 1.3, wave: 1.1, seed: 17 },
-      outbound: { base: 3.4, wave: 2.1, seed: 31 },
-      types: 8,
-      deltas: { types: 0, inbound: 12.5, borrow: -6.3, items: 2.1 }
-    },
-    month: {
-      key: 'month', label: '本月', deltaLabel: '较上月',
-      labels: dayLabels(30),
-      inbound: { base: 1.1, wave: 0.9, seed: 43 },
-      outbound: { base: 2.6, wave: 1.8, seed: 59 },
-      types: 12,
-      deltas: { types: 8.3, inbound: 4.2, borrow: 15.7, items: 9.4 }
-    },
-    quarter: {
-      key: 'quarter', label: '本季度', deltaLabel: '较上季度',
-      labels: ['10月', '11月', '12月'],
-      inbound: { base: 14, wave: 4.5, seed: 53 },
-      outbound: { base: 43, wave: 11, seed: 67 },
-      types: 14,
-      deltas: { types: 16.7, inbound: -3.8, borrow: 22.5, items: 13.2 }
-    },
-    half: {
-      key: 'half', label: '半年', deltaLabel: '较上期',
-      labels: ['6月', '7月', '8月', '9月', '10月', '11月'],
-      inbound: { base: 11, wave: 3.5, seed: 73 },
-      outbound: { base: 32, wave: 8, seed: 89 },
-      types: 16,
-      deltas: { types: 22.2, inbound: 9.1, borrow: 18.9, items: 15.6 }
-    },
-    year: {
-      key: 'year', label: '本年', deltaLabel: '较上年',
-      labels: MONTH_LABELS,
-      inbound: { base: 8.5, wave: 2.8, seed: 97 },
-      outbound: { base: 25, wave: 7, seed: 113 },
-      types: 17,
-      deltas: { types: 28.6, inbound: 14.6, borrow: 27.3, items: 21.8 }
-    }
+    all: { label: '近12个月' },
+    week: { label: '本周' },
+    month: { label: '本月' },
+    quarter: { label: '本季度' },
+    half: { label: '半年' },
+    year: { label: '本年' }
   };
 
   function formatNumber(value) {
@@ -158,7 +91,7 @@
   /* ============================ 顶栏与骨架 ============================ */
 
   var periodOptions = [
-    { value: 'all', label: '全部累积' },
+    { value: 'all', label: '近12个月' },
     { value: 'week', label: '本周' },
     { value: 'month', label: '本月' },
     { value: 'quarter', label: '本季度' },
@@ -423,7 +356,7 @@
         '<div class="card-hd">' +
           '<div>' +
             '<div class="card-title" id="chartTitle">进出物料趋势（本月）</div>' +
-            '<div class="card-sub" id="chartSub">入库与领用次数 · 单位：次 · 数据为前端模拟</div>' +
+            '<div class="card-sub" id="chartSub">入库与领用次数 · 单位：次 · 数据来自 MariaDB 实时统计</div>' +
           '</div>' +
           '<a class="card-link" href="' + esc(ERP.url('pages/logs.html')) + '">查看日志 ›</a>' +
         '</div>' +
@@ -673,102 +606,64 @@
 
   /* ============================ 更新 ============================ */
 
-  /** 从真实流水日志汇总所选周期内的入库 / 出库趋势 */
-  function realTrend(periodKey) {
-    var now = new Date();
-    var buckets = [];
-    var labels = [];
-    var isDay = periodKey === 'week' || periodKey === 'month';
-    var i;
-    if (isDay) {
-      var days = periodKey === 'week' ? 7 : 30;
-      for (i = days - 1; i >= 0; i -= 1) {
-        var day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-        var y = day.getFullYear();
-        var m = day.getMonth() + 1;
-        var d = day.getDate();
-        buckets.push(y + '-' + pad2(m) + '-' + pad2(d));
-        labels.push(periodKey === 'week' ? m + '/' + d : d + '日');
-      }
-    } else {
-      var months = periodKey === 'quarter' ? 3 : (periodKey === 'half' ? 6 : 12);
-      for (i = months - 1; i >= 0; i -= 1) {
-        var month = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        buckets.push(month.getFullYear() + '-' + pad2(month.getMonth() + 1));
-        labels.push((month.getMonth() + 1) + '月');
-      }
-    }
-
-    var inbound = labels.map(function () { return 0; });
-    var outbound = labels.map(function () { return 0; });
-    var inboundItems = 0;
-    var outboundCount = 0;
-    var inboundCount = 0;
-
-    ERP.store.logs().forEach(function (log) {
-      var date = String(log.createdAt || '').slice(0, 10);
-      if (!date) return;
-      var key = isDay ? date : date.slice(0, 7);
-      var index = buckets.indexOf(key);
-      if (index < 0) return;
-      if (log.action === 'restock') {
-        inbound[index] += 1;
-        inboundCount += 1;
-        inboundItems += Number(log.qty || 0);
-      } else if (log.action === 'borrow' || log.action === 'empty') {
-        outbound[index] += 1;
-        outboundCount += 1;
-        outboundItems += Number(log.qty || 0);
-      }
-    });
-
-    return {
-      labels: labels,
-      inbound: inbound,
-      outbound: outbound,
-      inboundCount: inboundCount,
-      outboundCount: outboundCount,
-      inboundItems: inboundItems,
-      outboundItems: outboundItems
-    };
+  /** 拉取后端 MariaDB 聚合数据并刷新 KPI / 趋势图 */
+  async function refreshSummary() {
+    var data = await ERP.api.get('/dashboard/summary?period=' + encodeURIComponent(state.period));
+    renderSummary(data);
+    return data;
   }
 
-  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
-
-  function update() {
-    var period = PERIODS[state.period];
-    if (!period) return;
-
-    var trend = realTrend(state.period);
+  function renderSummary(data) {
     var values = {
-      types: stats.total,
-      inbound: trend.inboundCount,
-      borrow: trend.outboundCount,
-      items: trend.inboundItems + trend.outboundItems
+      types: Number(data.total_materials) || 0,
+      inbound: Number(data.inbound_count) || 0,
+      borrow: Number(data.borrow_count) || 0,
+      items: Number(data.material_entries) || 0
     };
+    var periodLabel = data.period_label || (PERIODS[state.period] && PERIODS[state.period].label) || '';
 
     ['types', 'inbound', 'borrow', 'items'].forEach(function (key) {
       var valueEl = page.querySelector('[data-kpi="' + key + '"]');
       if (valueEl) valueEl.textContent = formatNumber(values[key]);
       var deltaEl = page.querySelector('[data-delta="' + key + '"]');
-      if (deltaEl) deltaEl.innerHTML = '<span class="kpi-delta is-flat">累计</span><span>' + esc(period.label) + '</span>';
+      if (deltaEl) {
+        deltaEl.innerHTML = '<span class="kpi-delta is-flat">实时</span><span>' + esc(periodLabel) + '</span>';
+      }
     });
 
     var periodBorrow = page.querySelector('[data-todo="periodBorrow"]');
-    if (periodBorrow) periodBorrow.innerHTML = formatNumber(trend.outboundCount) + '<small>次</small>';
+    if (periodBorrow) periodBorrow.innerHTML = formatNumber(values.borrow) + '<small>次</small>';
 
     var chartTitle = $('#chartTitle');
-    if (chartTitle) chartTitle.textContent = '进出物料趋势（' + period.label + '）';
+    if (chartTitle) chartTitle.textContent = '进出物料趋势（' + periodLabel + '）';
     var chartSub = $('#chartSub');
     if (chartSub) {
-      chartSub.textContent = '入库与领用次数 · 单位：次 · 数据来自领用日志';
+      chartSub.textContent = '入库与领用次数 · 单位：次 · 数据来自 MariaDB 实时统计' +
+        (data.updated_at ? ' · ' + data.updated_at.slice(11, 19) + ' 更新' : '');
     }
 
     if (trendChart) {
-      trendChart.data.labels = trend.labels;
-      trendChart.data.datasets[0].data = trend.inbound;
-      trendChart.data.datasets[1].data = trend.outbound;
+      trendChart.data.labels = data.labels || [];
+      trendChart.data.datasets[0].data = data.inbound || [];
+      trendChart.data.datasets[1].data = data.outbound || [];
       trendChart.update('none');
+    }
+  }
+
+  var refreshTimer = null;
+  var refreshPending = false;
+  async function refreshDashboard() {
+    if (refreshPending) return;
+    refreshPending = true;
+    try {
+      await ERP.store.load();
+      stats = ERP.store.stats();
+      await refreshSummary();
+    } catch (error) {
+      // 自动刷新失败不打断页面，保留上一次数据
+      if (window.console && console.warn) console.warn('dashboard refresh failed', error);
+    } finally {
+      refreshPending = false;
     }
   }
 
@@ -781,11 +676,27 @@
   if (periodSelect) {
     periodSelect.addEventListener('change', function () {
       state.period = periodSelect.value;
-      update();
+      refreshSummary().catch(function (error) {
+        ERP.ui.toast(error.message || '工作台数据加载失败', 'error');
+      });
     });
   }
 
-  update();
+  try {
+    await refreshSummary();
+  } catch (error) {
+    ERP.ui.toast(error.message || '工作台数据加载失败', 'error');
+  }
+
+  // 新增物料 / 入库 / 出库后自动刷新：定时 + 回到页面时刷新
+  refreshTimer = window.setInterval(refreshDashboard, 15000);
+  window.addEventListener('focus', refreshDashboard);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) refreshDashboard();
+  });
+  window.addEventListener('beforeunload', function () {
+    if (refreshTimer) window.clearInterval(refreshTimer);
+  });
 
   if (ERP.ui.getParam('denied') === '1') {
     ERP.ui.toast('当前角色无权访问该页面', 'warn');
@@ -794,7 +705,6 @@
   // 调试 / 自动化测试用
   ERP.dashboardDebug = {
     PERIODS: PERIODS,
-    makeSeries: makeSeries,
-    sum: sum
+    refresh: refreshDashboard
   };
 })();

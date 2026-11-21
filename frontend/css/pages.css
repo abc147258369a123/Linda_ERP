@@ -1085,3 +1085,73 @@ select.select option {
 @media (max-width: 720px) {
   .uploaded-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+
+/* =========================================================================
+   2026-11 图片等比展示优化：不拉伸、不裁切、小图居中留白
+   ========================================================================= */
+.detail-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 260px;
+  padding: 16px;
+  overflow: hidden;
+  background: #fffdf7;
+}
+.detail-media img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+.detail-thumbs {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.detail-thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  padding: 3px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fffdf7;
+  cursor: pointer;
+}
+.detail-thumb img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center;
+  border-radius: 4px;
+}
+.uploaded-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  background: #fffdf7;
+}
+.uploaded-item img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
