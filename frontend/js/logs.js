@@ -4,7 +4,7 @@
  * - 支持关键词、操作类型、物料分类、日期范围筛选与分页
  * - 管理员可导出当前筛选结果为 Excel
  */
-(function () {
+(async function () {
   'use strict';
   var ERP = window.ERP;
   var $ = ERP.ui.$, esc = ERP.ui.esc;
@@ -16,6 +16,8 @@
   var view = ERP.layout.mount({ active: 'logs', title: '领用日志' });
   if (!view) return;
   var page = view.content;
+
+  await ERP.store.load();
 
   var ACTION_TONE = { borrow: 'tag-brand', restock: 'tag-ok', empty: 'tag-empty' };
   var ACTION_LABEL = ERP.config.actionLabels || {};
@@ -162,7 +164,7 @@
 
     var material = materialOf(log);
     if (state.categoryId !== 'all') {
-      if (!material || material.categoryId !== state.categoryId) return false;
+      if (!material || String(material.categoryId) !== String(state.categoryId)) return false;
     }
 
     var date = String(log.borrowAt || '').slice(0, 10);

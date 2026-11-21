@@ -5,7 +5,7 @@
  * - 该物料的完整历史领用记录（日志永久保留）
  * 角色：所有登录用户可查看；编辑入口仅管理员可见。
  */
-(function () {
+(async function () {
   'use strict';
   var ERP = window.ERP;
   var $ = ERP.ui.$, esc = ERP.ui.esc;
@@ -13,6 +13,8 @@
   var session = ERP.auth.requireLogin();
   if (!session) return;
   var isAdmin = ERP.auth.isAdmin(session);
+
+  await ERP.store.load();
 
   var materialId = ERP.ui.getParam('id');
   var material = materialId ? ERP.store.getMaterial(materialId) : null;
@@ -46,7 +48,7 @@
     return;
   }
 
-  var logs = ERP.store.logsForMaterial(material.id);
+  var logs = await ERP.store.fetchMaterialLogs(material.id);
   var borrowLogs = logs.filter(function (log) { return log.action === 'borrow'; });
   var lastBorrow = borrowLogs.length ? borrowLogs[0] : null;
 

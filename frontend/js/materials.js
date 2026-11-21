@@ -4,7 +4,7 @@
  * - 简易模式显示「有货 / 空」，精确计数模式显示数量 + 状态
  * - 管理员：新增物料、导出 Excel、编辑入口；普通成员：仅查询 / 领用 / 详情
  */
-(function () {
+(async function () {
   'use strict';
   var ERP = window.ERP;
   var $ = ERP.ui.$, esc = ERP.ui.esc;
@@ -15,6 +15,8 @@
 
   var view = ERP.layout.mount({ active: 'materials', title: '物料总览' });
   if (!view) return;
+
+  await ERP.store.load();
 
   var state = {
     q: '',
@@ -153,7 +155,7 @@
   var initialCategory = ERP.ui.getParam('categoryId');
   if (initialCategory) {
     var categoryExists = ERP.store.categories().some(function (category) {
-      return category.id === initialCategory;
+      return String(category.id) === String(initialCategory);
     });
     if (categoryExists) {
       state.categoryId = initialCategory;

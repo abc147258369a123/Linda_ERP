@@ -67,7 +67,8 @@
       {
         group: '记录',
         items: [
-          { id: 'logs', label: '领用日志', href: 'pages/logs.html', icon: 'list' }
+          { id: 'logs', label: '领用日志', href: 'pages/logs.html', icon: 'list' },
+          { id: 'stock-orders', label: '出入库单', href: 'pages/stock-orders.html', icon: 'box', roles: ['admin'] }
         ]
       },
       {
@@ -88,7 +89,21 @@
       logs: '领用日志',
       alerts: '库存预警',
       categories: '分类管理',
-      users: '用户管理'
+      users: '用户管理',
+      'stock-orders': '出入库单'
     }
   };
+
+  /**
+   * 后端 API 地址：
+   * - 生产环境（Nginx 同源 8088）：/api
+   * - 本地静态预览 8090 / file://：直连树莓派后端 8088
+   * - 页面可通过 window.ERP_API_BASE 覆盖
+   */
+  ERP.config.apiBase = (function () {
+    if (window.ERP_API_BASE) return window.ERP_API_BASE;
+    if (window.location.protocol === 'file:') return 'http://10.34.126.41:8088/api';
+    if (window.location.port === '8090') return 'http://10.34.126.41:8088/api';
+    return '/api';
+  })();
 })();

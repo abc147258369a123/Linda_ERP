@@ -56,7 +56,7 @@
     <section class="login-panel">
       <form class="login-card" id="loginForm" autocomplete="off" novalidate>
         <h2>账号登录</h2>
-        <p class="login-desc">请选择登录角色并输入账号密码</p>
+        <p class="login-desc">使用社团账号登录，角色与权限由后端统一校验</p>
 
         <div class="login-fields">
           <div class="field">
@@ -68,35 +68,6 @@
             <label class="label" for="loginPassword">密码</label>
             <input class="input" id="loginPassword" name="password" type="password"
                    placeholder="请输入密码" autocomplete="current-password" required>
-          </div>
-          <div class="field">
-            <span class="label">登录角色</span>
-            <div class="role-picker" role="group" aria-label="登录角色">
-              <button type="button" class="role-option" data-role="super" aria-pressed="false">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M3 8l4 3 5-6 5 6 4-3-2 11H5L3 8Z"></path>
-                </svg>
-                超级管理员
-              </button>
-              <button type="button" class="role-option" data-role="admin" aria-pressed="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M12 22s8-3.6 8-9.5V5.5L12 2 4 5.5v7C4 18.4 12 22 12 22Z"></path>
-                  <path d="m9 12 2 2 4-4"></path>
-                </svg>
-                管理员
-              </button>
-              <button type="button" class="role-option" data-role="member" aria-pressed="false">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="12" cy="7" r="4"></circle>
-                </svg>
-                普通成员
-              </button>
-            </div>
-            <span class="field-hint">角色仅用于前端演示，真实权限由后端校验。</span>
           </div>
         </div>
 
@@ -114,21 +85,9 @@
           </span>
         </div>
 
-        <div class="demo-box">
-          <div class="demo-title">演示账号（点击填入）</div>
-          <div class="demo-row">
-            <button type="button" class="demo-chip" data-role="super"
-                    data-account="superadmin" data-password="super123">superadmin / super123 · 超管</button>
-            <button type="button" class="demo-chip" data-role="admin"
-                    data-account="admin" data-password="admin123">admin / admin123 · 管理员</button>
-            <button type="button" class="demo-chip" data-role="member"
-                    data-account="member" data-password="member123">member / member123 · 成员</button>
-          </div>
-        </div>
-
         <p class="login-note">
-          当前为纯前端演示版本：密码校验与权限控制将在后续由后端实现，
-          此处仅通过角色切换模拟登录身份。
+          账号由超级管理员在「用户管理」中创建；登录成功后使用 JWT 令牌访问后端接口，
+          页面数据全部来自 MariaDB，不再使用浏览器模拟数据。
         </p>
       </form>
     </section>
@@ -136,8 +95,9 @@
 
   <script src="js/config.js"></script>
   <script src="js/icons.js"></script>
-  <script src="js/store.js"></script>
   <script src="js/auth.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/store.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/login.js"></script>
   <script src="js/dev-reload.js"></script>

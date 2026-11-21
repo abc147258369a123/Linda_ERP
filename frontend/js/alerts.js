@@ -4,7 +4,7 @@
  * - 支持直接补货：补货后恢复有货并写入补货日志
  * - 简易模式物料（只记有货 / 空）不参与数量预警
  */
-(function () {
+(async function () {
   'use strict';
   var ERP = window.ERP;
   var $ = ERP.ui.$, esc = ERP.ui.esc;
@@ -15,6 +15,8 @@
   var view = ERP.layout.mount({ active: 'alerts', title: '库存预警' });
   if (!view) return;
   var page = view.content;
+
+  await ERP.store.load();
 
   function alertList() {
     var list = ERP.store.warnings().filter(function (material) {
@@ -171,14 +173,14 @@
       message: material.name + '：当前 ' + qty + ' 件 / 安全阈值 ' + threshold + ' 件',
       hint: '确认后库存增加并生成补货日志，预警状态自动更新。',
       okText: '确认补货'
-    }).then(function (value) {
+    }).then(async function (value) {
       if (value === null) return;
       var amount = Number(value);
       if (!amount || amount <= 0 || Math.floor(amount) !== amount) {
         ERP.ui.toast('请输入正整数补货数量', 'error');
         return;
       }
-      var result = ERP.store.restock(id, amount, session.name);
+      var result = await ERP.store.restock(id, amount, session.name);
       if (!result.ok) {
         ERP.ui.toast(result.error || '补货失败', 'error');
         return;

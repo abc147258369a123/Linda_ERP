@@ -4,7 +4,7 @@
  * - 分类下仍有物料时禁止删除，避免档案变成孤儿数据
  * - 点击分类名称或数量可跳转物料总览并按该分类筛选
  */
-(function () {
+(async function () {
   'use strict';
   var ERP = window.ERP;
   var $ = ERP.ui.$, esc = ERP.ui.esc;
@@ -15,6 +15,8 @@
   var view = ERP.layout.mount({ active: 'categories', title: '分类管理' });
   if (!view) return;
   var page = view.content;
+
+  await ERP.store.load();
 
   page.innerHTML =
     '<div class="page-head">' +
@@ -208,7 +210,7 @@
   function findCategory(id) {
     var found = null;
     ERP.store.categories().forEach(function (category) {
-      if (category.id === id) found = category;
+      if (String(category.id) === String(id)) found = category;
     });
     return found;
   }
@@ -222,9 +224,9 @@
       placeholder: '如：传感器模块',
       hint: '建议不超过 12 个字，名称不能重复',
       okText: '添加分类'
-    }).then(function (value) {
+    }).then(async function (value) {
       if (value === null) return;
-      var result = ERP.store.addCategory(value);
+      var result = await ERP.store.addCategory(value);
       if (!result.ok) {
         ERP.ui.toast(result.error || '添加失败', 'error');
         return;
@@ -243,9 +245,9 @@
       value: category.name,
       hint: '已关联的物料会自动使用新分类名称',
       okText: '保存修改'
-    }).then(function (value) {
+    }).then(async function (value) {
       if (value === null) return;
-      var result = ERP.store.renameCategory(id, value);
+      var result = await ERP.store.renameCategory(id, value);
       if (!result.ok) {
         ERP.ui.toast(result.error || '重命名失败', 'error');
         return;
@@ -267,9 +269,9 @@
       message: '确定删除空分类「' + category.name + '」吗？删除后不可恢复。',
       okText: '删除分类',
       danger: true
-    }).then(function (confirmed) {
+    }).then(async function (confirmed) {
       if (!confirmed) return;
-      var result = ERP.store.deleteCategory(id);
+      var result = await ERP.store.deleteCategory(id);
       if (!result.ok) {
         ERP.ui.toast(result.error || '删除失败', 'error');
         return;

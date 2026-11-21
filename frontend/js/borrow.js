@@ -5,7 +5,7 @@
  * - 简易模式：只写日志不改状态；管理员的「标记为空」按钮对该物料可见
  * - 提交成功后跳转物料详情页，可在历史记录中看到这条流水
  */
-(function () {
+(async function () {
   'use strict';
   var ERP = window.ERP;
   var $ = ERP.ui.$, esc = ERP.ui.esc;
@@ -17,6 +17,8 @@
   var view = ERP.layout.mount({ active: 'borrow', title: '领用登记' });
   if (!view) return;
   var page = view.content;
+
+  await ERP.store.load();
 
   // 若物料使用车中有物料，自动进入批量领用模式
   if (window.ERP.cart && ERP.cart.items().length) {
@@ -315,7 +317,7 @@
     });
   }
 
-  form.addEventListener('submit', function (event) {
+  form.addEventListener('submit', async function (event) {
     event.preventDefault();
     clearInvalid();
     var material = selectedMaterial();
@@ -359,7 +361,7 @@
       return;
     }
 
-    var result = ERP.store.borrow({
+    var result = await ERP.store.borrow({
       materialId: material.id,
       borrower: borrower,
       borrowAt: timeValue.replace('T', ' '),
@@ -393,9 +395,9 @@
         '<span class="muted small">档案会保留，补货后可直接复用；本次操作会写入领用日志。</span>',
       okText: '确认标记为空',
       danger: true
-    }).then(function (confirmed) {
+    }).then(async function (confirmed) {
       if (!confirmed) return;
-      var result = ERP.store.markEmpty(material.id, session.name);
+      var result = await ERP.store.markEmpty(material.id, session.name);
       if (!result.ok) {
         ERP.ui.toast(result.error || '操作失败', 'error');
         return;
@@ -601,7 +603,7 @@
       }
     });
 
-    $('#batchForm').addEventListener('submit', function (event) {
+    $('#batchForm').addEventListener('submit', async function (event) {
       event.preventDefault();
       ERP.ui.$all('.field.is-invalid').forEach(function (field) {
         field.classList.remove('is-invalid');
@@ -664,32 +666,23 @@
       submitBtn.disabled = true;
       submitBtn.textContent = '提交中…';
 
-      var success = 0;
-      var failures = [];
-      prepared.forEach(function (entry) {
-        var result = ERP.store.borrow({
-          materialId: entry.material.id,
-          borrower: borrower,
-          borrowAt: timeValue.replace('T', ' '),
-          project: project,
-          qty: entry.qty,
-          operator: session.name,
-          note: note
-        });
-        if (result.ok) success++;
-        else failures.push(entry.material.name + '：' + (result.error || '提交失败'));
-      });
+      var result = await ERP.store.borrowBatch(
+        prepared.map(function (entry) {
+          return { materialId: entry.material.id, qty: entry.qty };
+        }),
+        { borrower: borrower, project: project, note: note }
+      );
 
-      if (success > 0) {
+      if (result.ok) {
         ERP.cart.clear();
-        ERP.ui.toast('已提交 ' + success + ' 条领用登记', 'ok');
+        ERP.ui.toast('已提交 ' + result.count + ' 条领用登记', 'ok');
         window.setTimeout(function () {
-          window.location.href = ERP.url('index.html') + '?borrowed=' + success;
+          window.location.href = ERP.url('index.html') + '?borrowed=' + result.count;
         }, 600);
       } else {
         submitBtn.disabled = false;
         submitBtn.textContent = '批量提交领用（' + prepared.length + ' 条）';
-        ERP.ui.toast(failures[0] || '批量领用提交失败', 'error');
+        ERP.ui.toast(result.error || '批量领用提交失败', 'error');
       }
     });
   }

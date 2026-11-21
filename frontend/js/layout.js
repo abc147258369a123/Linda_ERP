@@ -40,8 +40,14 @@
   }
 
   /** 超级管理员：成员访问记录面板 */
-  function openVisitsPanel() {
-    var visits = ERP.store.visits();
+  async function openVisitsPanel() {
+    var visits = [];
+    try {
+      visits = await ERP.store.visits(50);
+    } catch (error) {
+      ERP.ui.toast(error.message || '访问记录加载失败', 'error');
+      return;
+    }
     var mask = document.createElement('div');
     mask.className = 'modal-mask';
     mask.innerHTML =

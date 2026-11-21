@@ -11,7 +11,7 @@
  *   - 物料总种类、分类占比、库存预警、最近进出库记录取自演示物料档案 / 领用日志；
  *   - 图表使用 CDN 引入的 Chart.js，加载失败时降级为提示文案。
  */
-(function () {
+(async function () {
   'use strict';
   var ERP = window.ERP;
   var $ = ERP.ui.$, esc = ERP.ui.esc;
@@ -19,6 +19,8 @@
   var session = ERP.auth.requireLogin();
   if (!session) return;
   var isAdmin = ERP.auth.isAdmin(session);
+
+  await ERP.store.load();
 
   var stats = ERP.store.stats();
   var warnings = ERP.store.warnings();
@@ -671,45 +673,101 @@
 
   /* ============================ 更新 ============================ */
 
+  /** 从真实流水日志汇总所选周期内的入库 / 出库趋势 */
+  function realTrend(periodKey) {
+    var now = new Date();
+    var buckets = [];
+    var labels = [];
+    var isDay = periodKey === 'week' || periodKey === 'month';
+    var i;
+    if (isDay) {
+      var days = periodKey === 'week' ? 7 : 30;
+      for (i = days - 1; i >= 0; i -= 1) {
+        var day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        var y = day.getFullYear();
+        var m = day.getMonth() + 1;
+        var d = day.getDate();
+        buckets.push(y + '-' + pad2(m) + '-' + pad2(d));
+        labels.push(periodKey === 'week' ? m + '/' + d : d + '日');
+      }
+    } else {
+      var months = periodKey === 'quarter' ? 3 : (periodKey === 'half' ? 6 : 12);
+      for (i = months - 1; i >= 0; i -= 1) {
+        var month = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        buckets.push(month.getFullYear() + '-' + pad2(month.getMonth() + 1));
+        labels.push((month.getMonth() + 1) + '月');
+      }
+    }
+
+    var inbound = labels.map(function () { return 0; });
+    var outbound = labels.map(function () { return 0; });
+    var inboundItems = 0;
+    var outboundCount = 0;
+    var inboundCount = 0;
+
+    ERP.store.logs().forEach(function (log) {
+      var date = String(log.createdAt || '').slice(0, 10);
+      if (!date) return;
+      var key = isDay ? date : date.slice(0, 7);
+      var index = buckets.indexOf(key);
+      if (index < 0) return;
+      if (log.action === 'restock') {
+        inbound[index] += 1;
+        inboundCount += 1;
+        inboundItems += Number(log.qty || 0);
+      } else if (log.action === 'borrow' || log.action === 'empty') {
+        outbound[index] += 1;
+        outboundCount += 1;
+        outboundItems += Number(log.qty || 0);
+      }
+    });
+
+    return {
+      labels: labels,
+      inbound: inbound,
+      outbound: outbound,
+      inboundCount: inboundCount,
+      outboundCount: outboundCount,
+      inboundItems: inboundItems,
+      outboundItems: outboundItems
+    };
+  }
+
+  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+
   function update() {
     var period = PERIODS[state.period];
     if (!period) return;
 
-    var inbound = makeSeries(period.inbound, period.labels.length);
-    var outbound = makeSeries(period.outbound, period.labels.length);
-    var inboundSum = sum(inbound);
-    var outboundSum = sum(outbound);
+    var trend = realTrend(state.period);
     var values = {
-      types: period.types,
-      inbound: inboundSum,
-      borrow: outboundSum,
-      items: Math.round(outboundSum * 1.6 + inboundSum * 0.9)
+      types: stats.total,
+      inbound: trend.inboundCount,
+      borrow: trend.outboundCount,
+      items: trend.inboundItems + trend.outboundItems
     };
 
     ['types', 'inbound', 'borrow', 'items'].forEach(function (key) {
       var valueEl = page.querySelector('[data-kpi="' + key + '"]');
       if (valueEl) valueEl.textContent = formatNumber(values[key]);
       var deltaEl = page.querySelector('[data-delta="' + key + '"]');
-      if (deltaEl) {
-        deltaEl.innerHTML = deltaHtml(period.deltas ? period.deltas[key] : null,
-          period.deltaLabel);
-      }
+      if (deltaEl) deltaEl.innerHTML = '<span class="kpi-delta is-flat">累计</span><span>' + esc(period.label) + '</span>';
     });
 
     var periodBorrow = page.querySelector('[data-todo="periodBorrow"]');
-    if (periodBorrow) periodBorrow.innerHTML = formatNumber(outboundSum) + '<small>次</small>';
+    if (periodBorrow) periodBorrow.innerHTML = formatNumber(trend.outboundCount) + '<small>次</small>';
 
     var chartTitle = $('#chartTitle');
     if (chartTitle) chartTitle.textContent = '进出物料趋势（' + period.label + '）';
     var chartSub = $('#chartSub');
     if (chartSub) {
-      chartSub.textContent = '入库与领用次数 · 单位：次 · 数据为前端模拟';
+      chartSub.textContent = '入库与领用次数 · 单位：次 · 数据来自领用日志';
     }
 
     if (trendChart) {
-      trendChart.data.labels = period.labels.slice();
-      trendChart.data.datasets[0].data = inbound;
-      trendChart.data.datasets[1].data = outbound;
+      trendChart.data.labels = trend.labels;
+      trendChart.data.datasets[0].data = trend.inbound;
+      trendChart.data.datasets[1].data = trend.outbound;
       trendChart.update('none');
     }
   }

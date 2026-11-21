@@ -5,7 +5,7 @@
  * - 管理员：仅可新增/编辑/删除普通成员，不能分配管理员及以上角色
  * - 保护规则：最后一个超级管理员/管理员不可降级或删除；不能删除当前登录账号
  */
-(function () {
+(async function () {
   'use strict';
   var ERP = window.ERP;
   var $ = ERP.ui.$, esc = ERP.ui.esc;
@@ -17,6 +17,8 @@
   var view = ERP.layout.mount({ active: 'users', title: '用户管理' });
   if (!view) return;
   var page = view.content;
+
+  await ERP.store.load();
 
   function roleTag(role) {
     var tone = role === 'super' ? 'tag-super' : (role === 'admin' ? 'tag-brand' : 'tag-simple');
@@ -246,6 +248,12 @@
                 'placeholder="如：王浩" value="' + esc(user ? user.name : '') + '">' +
             '</div>' +
             '<div class="field">' +
+              '<label class="label" for="userPassword">密码' + (isEdit ? '' : '<span class="req">*</span>') + '</label>' +
+              '<input class="input input-mono" id="userPassword" type="password" maxlength="72" ' +
+                'placeholder="' + (isEdit ? '留空表示不修改密码' : '至少 8 位') + '">' +
+              '<span class="field-hint">' + (isEdit ? '仅在需要重置密码时填写' : '密码由 bcrypt 哈希后存入数据库') + '</span>' +
+            '</div>' +
+            '<div class="field">' +
               '<span class="label">角色</span>' +
               rolePickHtml(role) +
             '</div>' +
@@ -277,13 +285,14 @@
     var accountInput = mask.querySelector('#userAccount');
     var nameInput = mask.querySelector('#userName');
     var noteInput = mask.querySelector('#userNote');
+    var passwordInput = mask.querySelector('#userPassword');
 
     function close() {
       document.removeEventListener('keydown', onKey);
       if (mask.parentNode) mask.parentNode.removeChild(mask);
     }
 
-    function save() {
+    async function save() {
       var account = String(accountInput.value || '').trim();
       var name = String(nameInput.value || '').trim();
       var note = String(noteInput.value || '').trim();
@@ -303,16 +312,28 @@
         nameInput.focus();
         return;
       }
+      var password = String(passwordInput.value || '');
+      if (!isEdit && password.length < 8) {
+        ERP.ui.toast('初始密码至少 8 位', 'error');
+        passwordInput.focus();
+        return;
+      }
+      if (password && password.length < 8) {
+        ERP.ui.toast('密码至少 8 位', 'error');
+        passwordInput.focus();
+        return;
+      }
 
       var payload = {
         account: account,
         name: name,
         role: isSuper ? role : 'member',
-        note: note
+        note: note,
+        password: password
       };
       var result = isEdit
-        ? ERP.store.updateUser(user.id, payload)
-        : ERP.store.addUser(payload);
+        ? await ERP.store.updateUser(user.id, payload)
+        : await ERP.store.addUser(payload);
       if (!result.ok) {
         ERP.ui.toast(result.error || '保存失败', 'error');
         return;
@@ -346,18 +367,18 @@
 
   function findUserById(id) {
     var found = null;
-    users().forEach(function (item) { if (item.id === id) found = item; });
+    users().forEach(function (item) { if (String(item.id) === String(id)) found = item; });
     return found;
   }
 
-  function toggleRole(id, nextRole) {
+  async function toggleRole(id, nextRole) {
     if (!isSuper) {
       ERP.ui.toast('仅超级管理员可分配角色', 'warn');
       return;
     }
     var user = findUserById(id);
     if (!user) return;
-    var result = ERP.store.updateUser(id, { role: nextRole });
+    var result = await ERP.store.updateUser(id, { role: nextRole });
     if (!result.ok) {
       ERP.ui.toast(result.error || '角色修改失败', 'error');
       return;
@@ -390,9 +411,9 @@
       message: '确定删除用户「' + user.name + '（' + user.account + '）」吗？删除后不可恢复。',
       okText: '删除用户',
       danger: true
-    }).then(function (confirmed) {
+    }).then(async function (confirmed) {
       if (!confirmed) return;
-      var result = ERP.store.deleteUser(id);
+      var result = await ERP.store.deleteUser(id);
       if (!result.ok) {
         ERP.ui.toast(result.error || '删除失败', 'error');
         return;

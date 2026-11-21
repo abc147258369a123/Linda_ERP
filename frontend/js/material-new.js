@@ -4,13 +4,15 @@
  * - 入库时间由系统自动填充，只读不可手改
  * - 新建后跳转到详情页；编辑时复用本页（?id=xxx）
  */
-(function () {
+(async function () {
   'use strict';
   var ERP = window.ERP;
   var $ = ERP.ui.$, esc = ERP.ui.esc;
 
   var session = ERP.auth.requireRole(['admin']);
   if (!session) return;
+
+  await ERP.store.load();
 
   var editingId = ERP.ui.getParam('id');
   var editing = editingId ? ERP.store.getMaterial(editingId) : null;
@@ -407,7 +409,7 @@
     };
   }
 
-  form.addEventListener('submit', function (event) {
+  form.addEventListener('submit', async function (event) {
     event.preventDefault();
     var saveBtn = $('#saveBtn');
     var payload = collectPayload();
@@ -416,11 +418,16 @@
     saveBtn.disabled = true;
     saveBtn.textContent = '保存中…';
 
-    var saved = ERP.store.upsertMaterial(payload);
-    ERP.ui.toast(editingId ? '物料档案已更新' : '物料已建档，可在详情页查看', 'ok');
-
-    window.setTimeout(function () {
-      window.location.href = detailHref(saved.id);
-    }, 320);
+    try {
+      var saved = await ERP.store.upsertMaterial(payload);
+      ERP.ui.toast(editingId ? '物料档案已更新' : '物料已建档，可在详情页查看', 'ok');
+      window.setTimeout(function () {
+        window.location.href = detailHref(saved.id);
+      }, 320);
+    } catch (error) {
+      ERP.ui.toast(error.message || '保存失败', 'error');
+      saveBtn.disabled = false;
+      saveBtn.textContent = editingId ? '保存修改' : '保存物料';
+    }
   });
 })();

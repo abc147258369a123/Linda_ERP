@@ -25,7 +25,12 @@
   function clear() {
     try {
       window.localStorage.removeItem(KEY);
+      window.localStorage.removeItem('erp.token');
     } catch (e) { /* ignore */ }
+  }
+  function token(session) {
+    var current = session || get();
+    return current && current.token ? current.token : '';
   }
   function roleOf(session) {
     return session && session.role ? session.role : 'member';
@@ -55,7 +60,8 @@
   /** 页面守卫：未登录跳登录页；角色等级不足回工作台 */
   function requireLogin() {
     var session = get();
-    if (!session) {
+    if (!session || !session.token) {
+      clear();
       window.location.replace(ERP.url('login.html'));
       return null;
     }
@@ -77,6 +83,7 @@
     get: get,
     set: set,
     clear: clear,
+    token: token,
     roleOf: roleOf,
     rank: rank,
     requiredRank: requiredRank,
