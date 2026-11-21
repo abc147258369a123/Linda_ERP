@@ -193,7 +193,6 @@
     mask.setAttribute('aria-modal', 'true');
     mask.innerHTML =
       '<div class="image-preview">' +
-        '<button class="image-preview-close" type="button" title="关闭">×</button>' +
         '<img src="' + esc(imageUrl(src)) + '" alt="' + esc(title || '物料图片') + '">' +
         (title ? '<div class="image-preview-title">' + esc(title) + '</div>' : '') +
       '</div>';
@@ -206,7 +205,8 @@
       if (event.key === 'Escape') close();
     }
     mask.addEventListener('click', function (event) {
-      if (event.target === mask || event.target.closest('.image-preview-close')) close();
+      // 点击黑色遮罩或图片外的留白区域即可关闭；点击图片本身不关闭
+      if (event.target === mask || event.target.classList.contains('image-preview')) close();
     });
     document.addEventListener('keydown', onKey);
   }

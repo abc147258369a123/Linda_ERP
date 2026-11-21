@@ -1235,23 +1235,6 @@ select.select option {
   border-radius: 8px;
   background: #fffdf7;
 }
-.image-preview-close {
-  position: absolute;
-  top: -14px;
-  right: -14px;
-  z-index: 1;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 1px solid rgba(255, 255, 255, .45);
-  border-radius: 50%;
-  background: rgba(18, 27, 36, .65);
-  color: #fff;
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-}
-.image-preview-close:hover { background: #b4453f; }
 .image-preview-title {
   max-width: 100%;
   overflow: hidden;
@@ -1265,3 +1248,8 @@ select.select option {
   .mat-thumb { width: 38px; height: 38px; }
   .log-material .mat-thumb { width: 32px; height: 32px; }
 }
+
+
+/* 库存预警：整行可点击进入物料详情 */
+.alert-row { cursor: pointer; }
+.alert-row:hover td { background: var(--block-sky); }

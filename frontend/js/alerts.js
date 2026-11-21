@@ -18,6 +18,10 @@
 
   await ERP.store.load();
 
+  function detailHref(id) {
+    return ERP.url('pages/material-detail.html?id=' + encodeURIComponent(id));
+  }
+
   function alertList() {
     var list = ERP.store.warnings().filter(function (material) {
       return material.mode === 'precise';
@@ -37,11 +41,9 @@
     var gap = Math.max(0, threshold - qty);
     var category = ERP.store.categoryName(material.categoryId);
     var location = [material.cabinet, material.slot].filter(Boolean).join(' ');
-    return '<tr>' +
+    return '<tr class="alert-row" data-alert-id="' + esc(material.id) + '">' +
       '<td>' +
         '<div class="mat-cell">' +
-          '<img class="mat-thumb" src="' +
-            esc(ERP.url(material.image || 'assets/img/default.svg')) + '" alt="" loading="lazy">' +
           '<div>' +
             '<div class="mat-name">' + esc(material.name) + '</div>' +
             '<div class="mat-model">' + esc(material.model || '—') + '</div>' +
@@ -193,7 +195,14 @@
 
   page.addEventListener('click', function (event) {
     var button = event.target.closest('[data-restock]');
-    if (button) handleRestock(button);
+    if (button) {
+      handleRestock(button);
+      return;
+    }
+    if (event.target.closest('button, a, input, select, textarea, label')) return;
+    var row = event.target.closest('tr[data-alert-id]');
+    if (!row) return;
+    window.location.href = detailHref(row.getAttribute('data-alert-id'));
   });
 
   render();
