@@ -10,6 +10,8 @@
   var passwordInput = $('#loginPassword');
   var errorBox = $('#loginError');
   var loginBtn = $('#loginBtn');
+  var versionEl = document.getElementById('loginVersion');
+  if (versionEl && ERP.config) versionEl.textContent = ERP.config.version;
 
   function showError(message) {
     if (!errorBox) return;

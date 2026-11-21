@@ -195,7 +195,7 @@ curl -fsS http://127.0.0.1:8088/api/health
 - **文件上传上限**：`client_max_body_size 10m`（与后端 `MAX_UPLOAD_MB=10` 一致）。
 - **超时**：`proxy_connect_timeout 5s`、`proxy_send_timeout 60s`、`proxy_read_timeout 60s`。
 - **代理目标**：`http://127.0.0.1:8000`，保留 `Host / X-Real-IP / X-Forwarded-For / X-Forwarded-Proto`。
-- **静态资源**：前端根目录 + `/uploads/` 指向 `data/uploads/`，开启缓存。
+- **静态资源**：前端根目录 + `/uploads/` 指向 `data/uploads/`；HTML/JS/CSS 设置为 `no-store/no-cache`（部署更新即时生效），仅上传图片缓存 7 天。
 - **上传大小若调整**：同时修改 Nginx `client_max_body_size` 与 `.env` 中 `MAX_UPLOAD_MB`。
 
 ## 12. 管理员账号初始化方式

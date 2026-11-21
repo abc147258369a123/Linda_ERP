@@ -53,6 +53,7 @@
     try {
       response = await fetch(base() + path, {
         method: opts.method || 'GET',
+        cache: 'no-store',
         headers: headers,
         body: opts.body instanceof FormData ? opts.body : (opts.body !== undefined ? JSON.stringify(opts.body) : undefined)
       });
