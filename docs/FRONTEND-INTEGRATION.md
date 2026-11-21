@@ -1,158 +1,83 @@
-# 前端对接后端说明（Linda_ERP）
+# 前端对接后端说明（Linda_ERP · 已实现）
 
-前端仍为原生静态 HTML（`frontend/`，无需构建）。本文说明把当前 `localStorage` 演示数据切换为后端 API 的最小改动方式。
+前端为原生静态 HTML/CSS/JS（`frontend/`，无需构建），**已全部切换为后端 API + MariaDB**，不再读取 `localStorage` 模拟业务数据。本文说明当前实现与维护方式。
 
 ## 1. 接口基础地址
 
 | 场景 | 地址 | 说明 |
 | --- | --- | --- |
-| 生产（Nginx 同源反代） | `/api` | 前端与后端同域，无需 CORS |
-| 本地直连后端（开发） | `http://127.0.0.1:8000/api` | 需在 `.env` 的 `CORS_ORIGINS` 放行前端地址 |
+| 生产（Nginx 8088 同源反代） | `/api` | 前端与后端同域，无需 CORS |
+| 本地预览（8090） | `http://10.34.126.41:8088/api` | `config.js` 自动判断端口并指向树莓派后端 |
+| 本地直连后端（开发） | `http://127.0.0.1:8000/api` | 需要在 `.env` 的 `CORS_ORIGINS` 放行前端地址 |
 
-示例（建议添加到 `frontend/js/config.js`）：
-
-```js
-ERP.config.apiBase = '/api';                // 生产
-// ERP.config.apiBase = 'http://127.0.0.1:8000/api';  // 本地联调
-ERP.config.useApi = true;                   // false 时继续走 localStorage 演示
-```
-
-## 2. 登录与会话
-
-1. `POST /api/auth/login`
-   ```json
-   { "username": "admin", "password": "******" }
-   ```
-2. 返回 `access_token`，保存到 `localStorage`（建议键 `erp.token`）：
-   ```js
-   localStorage.setItem('erp.token', data.access_token);
-   ERP.auth.set({ account: data.user.username, role: data.user.role, name: data.user.name, loginAt: ... });
-   ```
-3. 之后所有请求带请求头：
-   ```
-   Authorization: Bearer <access_token>
-   ```
-4. 收到 `401` 时清除 token 并跳回 `login.html`；`403` 显示“权限不足”。
-
-> 前端角色判断可继续使用 `ERP.auth.rank()/isAdmin()/isSuper()`，后端已做同等校验。
-
-## 3. 数据层替换方式（`frontend/js/store.js`）
-
-后端接口与现有前端调用基本一一对应，把 `store.js` 中的 localStorage 读写逐步替换为 `fetch` 即可；页面逻辑无需改动。
-
-| 前端现有方法 | 后端接口 |
-| --- | --- |
-| `store.materials()` / `listMaterials(filters)` | `GET /api/materials?q=&mode=&status=&category_id=&page=&page_size=` |
-| `store.getMaterial(id)` | `GET /api/materials/{id}` |
-| `store.upsertMaterial(payload)` | 新增 `POST /api/materials`；编辑 `PATCH /api/materials/{id}` |
-| `store.setStatus(id,status)` | `PATCH /api/materials/{id}/status` |
-| `store.categories()` | `GET /api/categories`（含 `material_count`） |
-| `store.addCategory / renameCategory / deleteCategory` | `POST /api/categories`、`PATCH /api/categories/{id}`、`DELETE /api/categories/{id}` |
-| `store.borrow(input)` | `POST /api/stock-out`（`type=borrow`，精确计数自动扣库存/置空） |
-| `store.restock(id, qty)` | `POST /api/stock-in`（`items:[{material_id, qty}]`） |
-| `store.markEmpty(id)` | `PATCH /api/materials/{id}/status` 或 `POST /api/stock-out`（`type=empty`，管理员） |
-| `store.logs(filters)` | `GET /api/inventory/logs?q=&action=&category_id=&from=&to=&page=&page_size=` |
-| `store.warnings()` | `GET /api/inventory/warnings` |
-| `store.stats()` | `GET /api/inventory/stats` |
-| `store.users()` / 用户管理 | `GET/POST/PATCH/DELETE /api/users` |
-| `store.addVisit()` / 访问记录 | 登录时后端自动记录；超管 `GET /api/visits` |
-| 物料图片上传 | `POST /api/uploads`（multipart，字段名 `file`），返回 `{url:"/uploads/xxx.png"}` |
-
-> 使用车（`erp.v1.cart`）属于前端会话数据，可保留在 localStorage；批量提交时循环调用 `POST /api/stock-out` 或后续新增批量接口。
-
-## 4. 建议的请求封装（可直接使用）
-
-新建 `frontend/js/api.js`：
+`frontend/js/config.js` 中的实际逻辑：
 
 ```js
-(function () {
-  'use strict';
-  window.ERP = window.ERP || {};
-
-  function apiBase() {
-    return (ERP.config && ERP.config.apiBase) || '/api';
-  }
-  function token() {
-    return localStorage.getItem('erp.token') || '';
-  }
-
-  async function request(path, options) {
-    var opts = options || {};
-    var headers = Object.assign(
-      { 'Content-Type': 'application/json' },
-      opts.headers || {}
-    );
-    if (token()) headers.Authorization = 'Bearer ' + token();
-
-    var response = await fetch(apiBase() + path, {
-      method: opts.method || 'GET',
-      headers: headers,
-      body: opts.body ? JSON.stringify(opts.body) : undefined
-    });
-
-    if (response.status === 401) {
-      localStorage.removeItem('erp.token');
-      location.href = ERP.url('login.html');
-      throw new Error('登录已过期');
-    }
-    var data = await response.json().catch(function () { return {}; });
-    if (!response.ok) {
-      var message = data && data.detail ? data.detail : '请求失败（' + response.status + '）';
-      throw new Error(typeof message === 'string' ? message : JSON.stringify(message));
-    }
-    return data;
-  }
-
-  ERP.api = {
-    login: function (username, password) {
-      return request('/auth/login', { method: 'POST', body: { username: username, password: password } });
-    },
-    me: function () { return request('/auth/me'); },
-    materials: function (query) { return request('/materials' + (query || '')); },
-    material: function (id) { return request('/materials/' + id); },
-    stockOut: function (payload) { return request('/stock-out', { method: 'POST', body: payload }); },
-    stockIn: function (payload) { return request('/stock-in', { method: 'POST', body: payload }); },
-    inventory: function (query) { return request('/inventory' + (query || '')); },
-    logs: function (query) { return request('/inventory/logs' + (query || '')); },
-    stats: function () { return request('/inventory/stats'); }
-  };
+ERP.config.apiBase = (function () {
+  if (window.ERP_API_BASE) return window.ERP_API_BASE;
+  if (window.location.protocol === 'file:') return 'http://10.34.126.41:8088/api';
+  if (window.location.port === '8090') return 'http://10.34.126.41:8088/api';
+  return '/api';
 })();
 ```
 
-登录页替换为：
+## 2. JWT 登录与会话
 
-```js
-var data = await ERP.api.login(account, password);
-localStorage.setItem('erp.token', data.access_token);
-ERP.auth.set({ account: data.user.username, role: data.user.role, name: data.user.name, loginAt: '—' });
-location.href = ERP.url('dashboard.html');
+- 登录：登录页调用 `POST /api/auth/login`（JSON：`username` / `password`）。
+- 成功后把 `access_token` 与用户信息写入 `localStorage` 会话（键 `erp.v1.session`），同时写 `erp.token`。
+- 所有接口由 `frontend/js/api.js` 自动添加请求头：
+  ```
+  Authorization: Bearer <access_token>
+  ```
+- 接口返回 `401` 时自动清除会话并跳回 `login.html`。
+- 登录页已移除角色选择/演示账号，角色完全由后端 `users.role` 决定。
+
+## 3. 数据层（`frontend/js/store.js`）
+
+- `ERP.store.load()`：并发拉取物料（500 条）、分类、库存统计、最近流水、用户（管理员）并写入内存缓存。
+- 页面初始化先 `await ERP.store.load()`；所有列表/详情从缓存同步读取，筛选与分页在前端完成。
+- 写操作全部调用后端并刷新缓存：
+
+| 前端调用 | 后端接口 |
+| --- | --- |
+| `store.upsertMaterial(payload)` | `POST /api/materials` / `PATCH /api/materials/{id}` |
+| `store.setStatus(id,status)` / `markEmpty` | `PATCH /api/materials/{id}/status` |
+| `store.borrow(input)` | `POST /api/stock-out`（领用） |
+| `store.borrowBatch(entries, meta)` | `POST /api/stock-out`（一次提交多条明细） |
+| `store.restock(id, qty)` / `createStockIn` | `POST /api/stock-in` |
+| `store.addCategory / renameCategory / deleteCategory` | `/api/categories` |
+| `store.addUser / updateUser / deleteUser` | `/api/users` |
+| `store.stockInOrders / stockInDetail` | `/api/stock-in` |
+| `store.stockOutOrders / stockOutDetail` | `/api/stock-out` |
+| `store.fetchMaterialLogs(id)` | `/api/materials/{id}/logs` |
+| `store.visits()` | `/api/visits`（超级管理员） |
+
+## 4. 已接入的页面
+
+- 登录页：真实账号密码 + JWT
+- 工作台：物料统计、低库存、分类占比、领用排行、最近流水、出入库趋势（基于真实日志）
+- 物料总览 / 新增 / 编辑 / 详情：档案 CRUD、图片路径、历史流水
+- 领用登记：单条 + 使用车批量 → 出库单，扣减库存并写日志
+- 库存预警：低库存查询 + 快捷补货 → 入库单
+- 分类管理：增删改、展开物料清单
+- 领用日志：领用/入库/标记为空流水
+- **出入库单（新增页面）**：入库单 / 出库单分页查询、新建入库单、查看单据明细
+- 用户管理：三级角色、密码初始化/重置、账号保护
+
+## 5. 上传图片（可选扩展）
+
+后端 `POST /api/uploads`（multipart，字段 `file`，≤10MB）返回 `{url:"/uploads/xxx.png"}`，Nginx `/uploads/` 直接读取 `data/uploads`。当前物料表单仍使用内置 SVG 示意图，可继续扩展为上传。
+
+## 6. 部署与本地调试
+
+```bash
+# 生产（树莓派）
+sudo bash scripts/deploy-pi.sh
+
+# 本地前端预览（API 自动指向 10.34.126.41:8088）
+node scripts/dev-server.js 8090
 ```
 
-## 5. CORS 与部署
-
-- 生产：前端与 `/api` 同域（Nginx 反代），后端 CORS 可留空；
-- 本地：浏览器直接访问 `http://127.0.0.1:8090`，后端需在 `.env` 配置
-  `CORS_ORIGINS=http://127.0.0.1:8090,http://localhost:8090`。
-- 部署前把 `frontend/js/config.js` 的 `dev: true` 改为 `false`，关闭自动刷新。
-
-## 6. 上传图片
-
-```js
-var form = new FormData();
-form.append('file', fileInput.files[0]);
-fetch('/api/uploads', {
-  method: 'POST',
-  headers: { Authorization: 'Bearer ' + localStorage.getItem('erp.token') },
-  body: form
-});
-// -> { "url": "/uploads/xxxx.png" }，写入物料 image 字段
-```
-
-## 7. 完整接口文档
-
-后端启动后可访问：
-
-- Swagger UI：`http://<树莓派IP>/api/docs`
-- OpenAPI JSON：`http://<树莓派IP>/api/openapi.json`
-
-权限矩阵、错误格式、分页格式见 [`docs/BACKEND.md`](BACKEND.md)。
+- 本地预览需要树莓派后端在线，且 `.env` 的 `CORS_ORIGINS` 包含 `http://127.0.0.1:8090`。
+- 生产环境 `frontend/js/config.js` 的 `dev` 已改为 `false`，关闭开发期自动刷新。
+- 登录账号请在「用户管理」中创建（超级管理员可分配管理员/普通成员；管理员只能管理普通成员）。

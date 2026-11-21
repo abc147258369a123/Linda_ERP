@@ -22,7 +22,7 @@
     appName: '硬件物料台账',
     clubName: '校内硬件社团',
     appDesc: '轻量化 ERP · 回收元器件统一台账',
-    version: 'v1.0.0',
+    version: 'v1.2.0',
 
     /** 开发期自动刷新（js/dev-reload.js 使用）。树莓派正式部署前改为 false */
     dev: true,
@@ -36,12 +36,6 @@
       member: { label: '普通成员', short: '成员' }
     },
 
-    /** 前端模拟登录：角色由登录页选择，密码与真实校验后续交给后端 */
-    demoAccounts: {
-      super: { account: 'superadmin', password: 'super123', label: '超级管理员', name: '周明' },
-      admin: { account: 'admin', password: 'admin123', label: '管理员', name: '林晨' },
-      member: { account: 'member', password: 'member123', label: '普通成员', name: '王浩' }
-    },
 
     modeLabels: { simple: '简易模式', precise: '精确计数' },
     statusLabels: { available: '有货', empty: '空' },

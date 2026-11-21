@@ -15,8 +15,8 @@ Linda_ERP/
 │   ├── login.html            登录页（超级管理员 / 管理员 / 普通成员）
 │   ├── dashboard.html        工作台
 │   ├── index.html            物料总览
-│   ├── pages/                物料新增 / 详情 / 领用 / 预警 / 分类 / 日志 / 用户
-│   ├── css/ · js/            样式与页面逻辑（store.js 当前为 localStorage 演示数据层）
+│   ├── pages/                物料新增 / 详情 / 领用 / 预警 / 分类 / 日志 / 用户 / 出入库单
+│   ├── css/ · js/            样式与页面逻辑（api.js 封装 JWT 请求，store.js 为 API 数据缓存层）
 │   └── assets/img/           Logo、物料示意图
 ├── backend/                  后端服务（FastAPI，Docker 部署）
 │   ├── app/
@@ -51,21 +51,19 @@ Linda_ERP/
 
 ## 快速开始
 
-### 前端（本地演示）
+### 前端（本地预览 / 已对接后端 API）
 
 ```bash
 node scripts/dev-server.js 8090
 ```
 
-浏览器打开 <http://127.0.0.1:8090/>。演示账号：
+浏览器打开 <http://127.0.0.1:8090/>。前端登录、物料档案、领用/入库/出库、库存查询、用户管理等数据全部来自后端 API 与 MariaDB，不再使用浏览器模拟数据。
 
-| 角色 | 账号 | 密码 |
-| --- | --- | --- |
-| 超级管理员 | `superadmin` | `super123` |
-| 管理员 | `admin` | `admin123` |
-| 普通成员 | `member` | `member123` |
+- 本地 8090 预览会自动把 API 指向 `http://10.34.126.41:8088/api`
+- 通过 Nginx 8088 访问时为同源 `/api`
+- 登录账号由后端「用户管理」创建，JWT 令牌保存在浏览器 localStorage 的会话中
 
-> 前端当前仍使用 `localStorage` 演示数据；切换后端的步骤见 [docs/FRONTEND-INTEGRATION.md](docs/FRONTEND-INTEGRATION.md)。
+> 接口地址、JWT 鉴权与数据层说明见 [docs/FRONTEND-INTEGRATION.md](docs/FRONTEND-INTEGRATION.md)。
 
 ### 后端（树莓派 Docker 部署）
 
@@ -144,4 +142,4 @@ curl -fsS http://127.0.0.1:8088/api/health
 - [x] 用户管理、成员访问记录、图片上传
 - [x] Dockerfile / docker-compose / Nginx 配置 / 一键部署脚本
 - [x] 树莓派实机部署（后端 + MariaDB + Nginx 容器，8088 入口）
-- [ ] 前端数据层切换为后端 API（当前仍为 localStorage 演示）
+- [x] 前端数据层切换为后端 API（JWT 登录、物料/分类/领用/出入库单/库存/用户）

@@ -503,11 +503,9 @@
       });
       return found;
     },
-    displayNameFor: function (account, role) {
+    displayNameFor: function (account) {
       var user = store.findUser(account);
       if (user) return user.name;
-      var demo = (ERP.config.demoAccounts || {})[role];
-      if (demo && demo.name) return demo.name;
       return account || '未命名用户';
     },
 
