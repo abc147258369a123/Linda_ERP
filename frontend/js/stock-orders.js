@@ -175,7 +175,17 @@
         ? await ERP.store.stockInDetail(id)
         : await ERP.store.stockOutDetail(id);
       var rows = (data.items || []).map(function (item) {
+        var material = ERP.store.getMaterial(item.material_code);
+        var image = material ? ERP.ui.firstImage(material.image) : '';
+        var thumb = image
+          ? '<button class="mat-thumb" type="button" title="查看大图" ' +
+              'data-preview-image="' + esc(ERP.ui.imageUrl(image)) + '" ' +
+              'data-preview-title="' + esc(item.material_name || '物料图片') + '">' +
+              '<img src="' + esc(ERP.ui.imageUrl(image)) + '" alt="" loading="lazy">' +
+            '</button>'
+          : '<span class="mat-thumb is-empty">' + ERP.icon('image', 14) + '</span>';
         return '<tr>' +
+          '<td>' + thumb + '</td>' +
           '<td><span class="cell-mono">' + esc(item.material_code || '') + '</span></td>' +
           '<td>' + esc(item.material_name || '') + '</td>' +
           '<td class="col-num">' + esc(item.qty == null ? '—' : item.qty) + '</td>' +
@@ -194,8 +204,8 @@
             (data.borrower ? '<p class="small" style="margin-bottom:10px;">领用人：' + esc(data.borrower) +
               ' · 项目：' + esc(data.project || '—') + '</p>' : '') +
             '<div class="table-wrap"><table class="table">' +
-              '<thead><tr><th>物料编号</th><th>物料名称</th><th class="col-num">数量</th></tr></thead>' +
-              '<tbody>' + (rows || '<tr><td colspan="3"><div class="empty" style="padding:20px;">无明细</div></td></tr>') + '</tbody>' +
+              '<thead><tr><th>图片</th><th>物料编号</th><th>物料名称</th><th class="col-num">数量</th></tr></thead>' +
+              '<tbody>' + (rows || '<tr><td colspan="4"><div class="empty" style="padding:20px;">无明细</div></td></tr>') + '</tbody>' +
             '</table></div>' +
           '</div>' +
           '<div class="modal-ft"><button class="btn" type="button" data-act="close">关闭</button></div>' +
@@ -203,6 +213,12 @@
       document.body.appendChild(mask);
       function close() { mask.remove(); }
       mask.addEventListener('click', function (event) {
+        var previewBtn = event.target.closest('[data-preview-image]');
+        if (previewBtn) {
+          event.preventDefault();
+          ERP.ui.previewImage(previewBtn.getAttribute('data-preview-image'), previewBtn.getAttribute('data-preview-title'));
+          return;
+        }
         if (event.target === mask) return close();
         if (event.target.closest('[data-act="close"]')) close();
       });

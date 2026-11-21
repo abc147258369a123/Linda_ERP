@@ -22,7 +22,7 @@
     appName: '硬件物料台账',
     clubName: '校内硬件社团',
     appDesc: '轻量化 ERP · 回收元器件统一台账',
-    version: 'v1.2.4',
+    version: 'v1.2.5',
 
     /** 开发期自动刷新（js/dev-reload.js 使用）。树莓派正式部署前改为 false */
     dev: true,

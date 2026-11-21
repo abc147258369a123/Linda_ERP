@@ -174,6 +174,43 @@
     }
   }
 
+  /** 取逗号分隔图片路径中的第一张 */
+  function firstImage(paths) {
+    var parts = String(paths || '').split(',');
+    for (var i = 0; i < parts.length; i += 1) {
+      var value = parts[i].trim();
+      if (value) return value;
+    }
+    return '';
+  }
+
+  /** 列表缩略图 / 任意位置点击查看大图 */
+  function previewImage(src, title) {
+    if (!src) return;
+    var mask = document.createElement('div');
+    mask.className = 'image-preview-mask';
+    mask.setAttribute('role', 'dialog');
+    mask.setAttribute('aria-modal', 'true');
+    mask.innerHTML =
+      '<div class="image-preview">' +
+        '<button class="image-preview-close" type="button" title="关闭">×</button>' +
+        '<img src="' + esc(imageUrl(src)) + '" alt="' + esc(title || '物料图片') + '">' +
+        (title ? '<div class="image-preview-title">' + esc(title) + '</div>' : '') +
+      '</div>';
+    document.body.appendChild(mask);
+    function close() {
+      document.removeEventListener('keydown', onKey);
+      if (mask.parentNode) mask.parentNode.removeChild(mask);
+    }
+    function onKey(event) {
+      if (event.key === 'Escape') close();
+    }
+    mask.addEventListener('click', function (event) {
+      if (event.target === mask || event.target.closest('.image-preview-close')) close();
+    });
+    document.addEventListener('keydown', onKey);
+  }
+
   /** 图片路径：/uploads/ 绝对路径直接使用，其余相对路径按项目 base 拼接 */
   function imageUrl(path) {
     var value = String(path || '').trim();
@@ -195,6 +232,8 @@
     fmtDate: fmtDate,
     debounce: debounce,
     getParam: getParam,
-    imageUrl: imageUrl
+    imageUrl: imageUrl,
+    firstImage: firstImage,
+    previewImage: previewImage
   };
 })();

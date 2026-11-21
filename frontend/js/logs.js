@@ -192,12 +192,22 @@
     var actionLabel = ACTION_LABEL[log.action] || log.action;
     var tone = ACTION_TONE[log.action] || 'tag-simple';
     var model = material ? (material.model || '') : '';
+    var image = material ? ERP.ui.firstImage(material.image) : '';
+    var thumb = image
+      ? '<button class="mat-thumb" type="button" title="查看大图" ' +
+          'data-preview-image="' + esc(ERP.ui.imageUrl(image)) + '" ' +
+          'data-preview-title="' + esc(log.materialName) + '">' +
+          '<img src="' + esc(ERP.ui.imageUrl(image)) + '" alt="" loading="lazy">' +
+        '</button>'
+      : '<span class="mat-thumb is-empty" title="暂无图片">' + ERP.icon('image', 14) + '</span>';
     return '<tr>' +
       '<td><span class="cell-mono">' + esc(log.id) + '</span></td>' +
       '<td>' +
-        '<div class="mat-name"><a href="' + esc(detailHref(log.materialId)) + '">' +
-          esc(log.materialName) + '</a></div>' +
-        (model ? '<div class="mat-sub">' + esc(model) + '</div>' : '') +
+        '<div class="log-material">' + thumb + '<div>' +
+          '<div class="mat-name"><a href="' + esc(detailHref(log.materialId)) + '">' +
+            esc(log.materialName) + '</a></div>' +
+          (model ? '<div class="mat-sub">' + esc(model) + '</div>' : '') +
+        '</div></div>' +
       '</td>' +
       '<td><span class="tag ' + tone + ' tag-dot">' + esc(actionLabel) + '</span></td>' +
       '<td>' + esc(log.borrower || '—') + '</td>' +
@@ -298,6 +308,12 @@
   });
 
   tbody.addEventListener('click', function (event) {
+    var previewBtn = event.target.closest('[data-preview-image]');
+    if (previewBtn) {
+      event.preventDefault();
+      ERP.ui.previewImage(previewBtn.getAttribute('data-preview-image'), previewBtn.getAttribute('data-preview-title'));
+      return;
+    }
     if (event.target.closest('#emptyResetLogsBtn')) resetFilters();
   });
 

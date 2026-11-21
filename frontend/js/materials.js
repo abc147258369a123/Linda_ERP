@@ -209,6 +209,17 @@
     return '<tr data-id="' + esc(material.id) + '">' +
       '<td>' +
         '<div class="mat-cell">' +
+          (function () {
+            var image = ERP.ui.firstImage(material.image);
+            if (!image) {
+              return '<span class="mat-thumb is-empty" title="暂无图片">' + ERP.icon('image', 16) + '</span>';
+            }
+            return '<button class="mat-thumb" type="button" title="查看大图" ' +
+              'data-preview-image="' + esc(ERP.ui.imageUrl(image)) + '" ' +
+              'data-preview-title="' + esc(material.name) + '">' +
+              '<img src="' + esc(ERP.ui.imageUrl(image)) + '" alt="" loading="lazy">' +
+            '</button>';
+          })() +
           '<div>' +
             '<div class="mat-name">' +
               '<a href="' + esc(detailHref(material.id)) + '">' + esc(material.name) + '</a>' +
@@ -399,6 +410,13 @@
   });
 
   tbody.addEventListener('click', function (event) {
+    var previewBtn = event.target.closest('[data-preview-image]');
+    if (previewBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      ERP.ui.previewImage(previewBtn.getAttribute('data-preview-image'), previewBtn.getAttribute('data-preview-title'));
+      return;
+    }
     if (event.target.closest('#emptyResetBtn')) {
       resetFilters();
       return;

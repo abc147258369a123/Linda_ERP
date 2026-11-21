@@ -1158,3 +1158,110 @@ select.select option {
   object-fit: contain;
   object-position: center;
 }
+
+
+/* =========================================================================
+   2026-11 列表缩略图与大图预览
+   ========================================================================= */
+.mat-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mat-thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 2px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fffdf7;
+  cursor: pointer;
+}
+.mat-thumb:hover { border-color: var(--brand); }
+.mat-thumb img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.mat-thumb.is-empty {
+  color: var(--text-3);
+  background: var(--surface-2);
+  border-style: dashed;
+  cursor: default;
+}
+.log-material {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.log-material .mat-thumb { width: 36px; height: 36px; }
+
+/* 点击缩略图查看大图 */
+.image-preview-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(18, 27, 36, .78);
+  backdrop-filter: blur(3px);
+}
+.image-preview {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 1000px);
+  max-height: 92vh;
+}
+.image-preview img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(92vh - 50px);
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fffdf7;
+}
+.image-preview-close {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, .45);
+  border-radius: 50%;
+  background: rgba(18, 27, 36, .65);
+  color: #fff;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.image-preview-close:hover { background: #b4453f; }
+.image-preview-title {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .mat-thumb { width: 38px; height: 38px; }
+  .log-material .mat-thumb { width: 32px; height: 32px; }
+}
