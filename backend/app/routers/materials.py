@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..deps import get_current_user, require_admin
-from ..models import Category, Material, MaterialLog, User
+from ..models import Category, Material, MaterialLog, StockInItem, StockInOrder, User
 from ..schemas import MaterialCreate, MaterialStatusUpdate, MaterialUpdate
 from ..serializers import log_dict, material_dict
 from ..timeutil import now_local
@@ -135,12 +135,24 @@ def create_material(
     db.add(material)
     db.flush()
     material.code = f"M-{material.id:04d}"
+
+    # 新增物料时填写的初始库存，同时生成一张入库单与补货流水，
+    # 保证「物料总览」「出入库单」「领用日志」三处数据一致。
     if precise and qty and qty > 0:
+        order = StockInOrder(
+            order_no=f"IN-{now_local():%Y%m%d}-{uuid4().hex[:8].upper()}",
+            operator_id=actor.id,
+            note="新增物料初始库存",
+        )
+        db.add(order)
+        db.flush()
+        db.add(StockInItem(order_id=order.id, material_id=material.id, qty=qty))
         db.add(MaterialLog(
             material_id=material.id,
-            action="adjust",
+            action="restock",
             qty=qty,
-            note="建档初始库存",
+            order_no=order.order_no,
+            note="新增物料初始库存",
             operator_id=actor.id,
         ))
     db.commit()

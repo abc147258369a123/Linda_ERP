@@ -174,6 +174,14 @@
     }
   }
 
+  /** 图片路径：/uploads/ 绝对路径直接使用，其余相对路径按项目 base 拼接 */
+  function imageUrl(path) {
+    var value = String(path || '').trim();
+    if (!value) return ERP.url('assets/img/default.svg');
+    if (/^(https?:)?\/\//.test(value) || value.charAt(0) === '/') return value;
+    return ERP.url(value);
+  }
+
   ERP.ui = {
     $: $,
     $all: $all,
@@ -186,6 +194,7 @@
     fmtDateTime: fmtDateTime,
     fmtDate: fmtDate,
     debounce: debounce,
-    getParam: getParam
+    getParam: getParam,
+    imageUrl: imageUrl
   };
 })();

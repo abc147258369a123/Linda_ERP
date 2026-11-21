@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..deps import get_current_user, require_admin
+from ..deps import get_current_user, require_admin, require_super
 from ..models import Category, Material
 from ..schemas import CategoryCreate, CategoryUpdate
 from ..serializers import category_dict
@@ -27,11 +27,11 @@ def list_categories(db: Session = Depends(get_db), _=Depends(get_current_user)):
     return {"items": [_with_counts(db, category) for category in categories]}
 
 
-@router.post("", status_code=status.HTTP_201_CREATED, summary="新增分类")
+@router.post("", status_code=status.HTTP_201_CREATED, summary="新增分类（仅超级管理员）")
 def create_category(
     payload: CategoryCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_admin),
+    _=Depends(require_super),
 ):
     exists = db.query(Category).filter(func.lower(Category.name) == payload.name.lower()).first()
     if exists:
@@ -65,11 +65,11 @@ def update_category(
     return category_dict(category)
 
 
-@router.delete("/{category_id}", summary="删除空分类")
+@router.delete("/{category_id}", summary="删除空分类（仅超级管理员）")
 def delete_category(
     category_id: int,
     db: Session = Depends(get_db),
-    _=Depends(require_admin),
+    _=Depends(require_super),
 ):
     category = db.get(Category, category_id)
     if category is None:

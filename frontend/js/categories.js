@@ -11,6 +11,7 @@
 
   var session = ERP.auth.requireRole(['admin']);
   if (!session) return;
+  var isSuper = ERP.auth.isSuper(session);
 
   var view = ERP.layout.mount({ active: 'categories', title: '分类管理' });
   if (!view) return;
@@ -25,8 +26,10 @@
         '<p class="page-desc">维护物料分类；分类下仍有物料档案时不可删除，可先调整物料分类。</p>' +
       '</div>' +
       '<div class="page-head-actions">' +
-        '<button class="btn btn-primary" type="button" id="addCategoryBtn">' +
-          ERP.icon('plus', 15) + '新增分类</button>' +
+        (isSuper
+          ? '<button class="btn btn-primary" type="button" id="addCategoryBtn">' +
+              ERP.icon('plus', 15) + '新增分类</button>'
+          : '<span class="field-hint" style="align-self:center;">新增/删除分类仅超级管理员可操作</span>') +
         '<a class="btn" href="' + esc(ERP.url('index.html')) + '">' + ERP.icon('grid', 15) + '物料总览</a>' +
       '</div>' +
     '</div>' +
@@ -141,7 +144,7 @@
             '<div class="mat-name">' +
               '<a href="' + esc(materialListHref(category.id)) + '">' + esc(category.name) + '</a>' +
             '</div>' +
-            '<div class="mat-sub">' + esc(category.id) + '</div>' +
+
           '</div>' +
         '</div>' +
       '</td>' +
@@ -162,9 +165,11 @@
       '<td class="col-actions">' +
         '<div class="row-actions">' +
           '<button class="btn-link" type="button" data-rename="' + esc(category.id) + '">重命名</button>' +
-          (used
-            ? '<span class="btn-link is-disabled" title="该分类下仍有 ' + category.count + ' 个物料，不能删除">删除</span>'
-            : '<button class="btn-link text-danger" type="button" data-delete="' + esc(category.id) + '">删除</button>') +
+          (isSuper
+            ? (used
+              ? '<span class="btn-link is-disabled" title="该分类下仍有 ' + category.count + ' 个物料，不能删除">删除</span>'
+              : '<button class="btn-link text-danger" type="button" data-delete="' + esc(category.id) + '">删除</button>')
+            : '') +
         '</div>' +
       '</td>' +
     '</tr>' + (isOpen ? expandRowHtml(category) : '');
@@ -218,6 +223,10 @@
   /* ---------------- 新增 / 重命名 / 删除 ---------------- */
 
   function addCategory() {
+    if (!isSuper) {
+      ERP.ui.toast('仅超级管理员可新增分类', 'warn');
+      return;
+    }
     ERP.ui.prompt({
       title: '新增物料分类',
       label: '分类名称',
@@ -258,6 +267,10 @@
   }
 
   function deleteCategory(id) {
+    if (!isSuper) {
+      ERP.ui.toast('仅超级管理员可删除分类', 'warn');
+      return;
+    }
     var category = findCategory(id);
     if (!category) return;
     if (category.count > 0) {

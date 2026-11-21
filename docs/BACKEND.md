@@ -239,7 +239,9 @@ docker compose exec -T backend python -m app.cli list-users
 | PATCH | `/api/users/{id}` | 管理员+ | 编辑 / 重置密码 / 分配角色（超管可分配任意角色） |
 | DELETE | `/api/users/{id}` | 管理员+ | 删除用户（保护最后超管/管理员与当前账号） |
 | GET | `/api/visits` | 超管 | 成员访问记录 |
-| GET/POST/PATCH/DELETE | `/api/categories` | 登录/管理员+ | 分类查询与维护 |
+| GET | `/api/categories` | 登录 | 分类查询（含物料数量） |
+| POST / DELETE | `/api/categories` | **仅超级管理员** | 新增 / 删除分类 |
+| PATCH | `/api/categories/{id}` | 管理员+ | 重命名分类 |
 | GET | `/api/materials` | 登录 | 物料搜索 / 筛选 / 分页 |
 | GET | `/api/materials/{id}` | 登录 | 物料详情 |
 | POST/PATCH | `/api/materials` | 管理员+ | 新增 / 编辑物料档案 |

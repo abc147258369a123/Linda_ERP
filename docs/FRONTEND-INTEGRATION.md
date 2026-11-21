@@ -45,7 +45,7 @@ ERP.config.apiBase = (function () {
 | `store.borrow(input)` | `POST /api/stock-out`（领用） |
 | `store.borrowBatch(entries, meta)` | `POST /api/stock-out`（一次提交多条明细） |
 | `store.restock(id, qty)` / `createStockIn` | `POST /api/stock-in` |
-| `store.addCategory / renameCategory / deleteCategory` | `/api/categories` |
+| `store.addCategory / renameCategory / deleteCategory` | `/api/categories`（新增/删除仅超级管理员，管理员仅重命名） |
 | `store.addUser / updateUser / deleteUser` | `/api/users` |
 | `store.stockInOrders / stockInDetail` | `/api/stock-in` |
 | `store.stockOutOrders / stockOutDetail` | `/api/stock-out` |
@@ -64,9 +64,11 @@ ERP.config.apiBase = (function () {
 - **出入库单（新增页面）**：入库单 / 出库单分页查询、新建入库单、查看单据明细
 - 用户管理：三级角色、密码初始化/重置、账号保护
 
-## 5. 上传图片（可选扩展）
+## 5. 上传图片（已接入新增物料页，规划多图）
 
-后端 `POST /api/uploads`（multipart，字段 `file`，≤10MB）返回 `{url:"/uploads/xxx.png"}`，Nginx `/uploads/` 直接读取 `data/uploads`。当前物料表单仍使用内置 SVG 示意图，可继续扩展为上传。
+后端 `POST /api/uploads`（multipart，字段 `file`，≤10MB）返回 `{url:"/uploads/xxx.png"}`，Nginx `/uploads/` 直接读取 `data/uploads`。
+
+新增物料页已支持多图上传：前端限制 jpg/png、单张 ≤5MB、最多 5 张；上传成功后把 `/uploads/...` 相对路径以逗号分隔写入 `materials.image`，详情页按路径回显图集。后续可扩展为 `material_images` 独立表，但数据库仍只保存相对路径。
 
 ## 6. 部署与本地调试
 

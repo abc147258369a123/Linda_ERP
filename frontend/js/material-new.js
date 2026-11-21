@@ -11,6 +11,7 @@
 
   var session = ERP.auth.requireRole(['admin']);
   if (!session) return;
+  var isSuper = ERP.auth.isSuper(session);
 
   await ERP.store.load();
 
@@ -45,10 +46,15 @@
   /* ---------------- 初始状态 ---------------- */
 
   var inboundAt = editing ? editing.inboundAt : ERP.store.now();
+  var editingImages = editing && editing.image
+    ? String(editing.image).split(',').map(function (item) { return item.trim(); })
+        .filter(function (item) { return item && item.indexOf('/uploads/') === 0; })
+    : [];
   var state = {
     mode: editing ? editing.mode : 'simple',
     status: editing && editing.status === 'empty' ? 'empty' : 'available',
-    image: editing && editing.image ? editing.image : 'assets/img/default.svg'
+    image: editing && editing.image && editingImages.length === 0 ? editing.image : 'assets/img/default.svg',
+    images: editingImages.slice(0, 5)
   };
 
   var IMAGE_PRESETS = [
@@ -73,12 +79,31 @@
     { file: 'perfboard.svg', label: '洞洞板' }
   ];
 
+  var categoryList = ERP.store.categories();
+  var editingCategoryName = '';
+  if (editing) {
+    categoryList.forEach(function (category) {
+      if (String(category.id) === String(editing.categoryId)) editingCategoryName = category.name;
+    });
+  }
+  // 分类下拉只显示名称，不带任何序号；超级管理员使用“可输入 + datalist”复合控件
   var categoryOptions = '<option value="">请选择分类</option>' +
-    ERP.store.categories().map(function (category) {
+    categoryList.map(function (category) {
       return '<option value="' + esc(category.id) + '"' +
-        (editing && editing.categoryId === category.id ? ' selected' : '') + '>' +
+        (editing && String(editing.categoryId) === String(category.id) ? ' selected' : '') + '>' +
         esc(category.name) + '</option>';
     }).join('');
+  var categoryFieldHtml = isSuper
+    ? '<input class="input input-lg" id="materialCategory" type="text" list="materialCategoryList" autocomplete="off" ' +
+        'placeholder="选择已有分类，或直接输入新分类名称" value="' + esc(editingCategoryName) + '">' +
+      '<datalist id="materialCategoryList">' +
+        categoryList.map(function (category) {
+          return '<option value="' + esc(category.name) + '"></option>';
+        }).join('') +
+      '</datalist>' +
+      '<span class="field-hint">超级管理员可输入新分类名称，保存物料时会自动创建分类</span>'
+    : '<select class="select select-lg" id="materialCategory">' + categoryOptions + '</select>' +
+      '<span class="field-hint">普通管理员只能选择已有分类；新增分类请联系超级管理员</span>';
 
   var sourceList = [];
   ERP.store.materials().forEach(function (material) {
@@ -156,7 +181,7 @@
             '</div>' +
             '<div class="field">' +
               '<label class="label" for="materialCategory">物料分类<span class="req">*</span></label>' +
-              '<select class="select" id="materialCategory">' + categoryOptions + '</select>' +
+              categoryFieldHtml +
             '</div>' +
             '<div class="field">' +
               '<label class="label" for="materialSource">来源项目（所属项目）</label>' +
@@ -247,15 +272,25 @@
         '<div class="card-hd">' +
           '<div>' +
             '<div class="card-title">物料图片与备注</div>' +
-            '<div class="card-sub">选择一张示意图作为档案图片，也可保留默认图片</div>' +
+            '<div class="card-sub">可上传多张实拍图（jpg / png，单张 ≤ 5MB，最多 5 张）；图片存服务器本地目录，数据库只保存相对路径</div>' +
           '</div>' +
         '</div>' +
         '<div class="card-bd">' +
           '<div class="field">' +
-            '<span class="label">物料图片</span>' +
+            '<span class="label">实拍图片</span>' +
+            '<div class="upload-row">' +
+              '<label class="btn btn-sm" for="materialImages">' + ERP.icon('upload', 14) + '选择图片上传</label>' +
+              '<input class="upload-input" id="materialImages" type="file" accept="image/jpeg,image/png" multiple>' +
+              '<span class="field-hint" id="uploadHint">未选择图片</span>' +
+            '</div>' +
+            '<div class="uploaded-grid" id="uploadedGrid"></div>' +
+          '</div>' +
+          '<div class="field section-gap">' +
+            '<span class="label">示意图 / 默认图片</span>' +
             '<div class="image-grid" id="imageGrid" role="group" aria-label="物料图片">' +
               imageOptions +
             '</div>' +
+            '<span class="field-hint">未上传实拍图时使用这里选中的示意图作为档案封面</span>' +
           '</div>' +
           '<div class="field section-gap">' +
             '<label class="label" for="materialNote">备注</label>' +
@@ -321,6 +356,67 @@
     });
   });
 
+  /* ---------------- 多图上传（前端上传到 /api/uploads，数据库只存相对路径） ---------------- */
+
+  var uploadInput = $('#materialImages');
+  var uploadedGrid = $('#uploadedGrid');
+  var uploadHint = $('#uploadHint');
+
+  function renderUploadedImages() {
+    if (!state.images.length) {
+      uploadedGrid.innerHTML = '<div class="uploaded-empty">尚未上传实拍图片，保存后使用下方示意图作为封面</div>';
+      if (uploadHint) uploadHint.textContent = '未选择图片';
+      return;
+    }
+    uploadedGrid.innerHTML = state.images.map(function (path, index) {
+      return '<div class="uploaded-item">' +
+        '<img src="' + esc(ERP.ui.imageUrl(path)) + '" alt="实拍图 ' + (index + 1) + '" loading="lazy">' +
+        '<button class="uploaded-remove" type="button" data-remove-image="' + index + '" title="移除图片">' + ERP.icon('x', 12) + '</button>' +
+      '</div>';
+    }).join('');
+    if (uploadHint) uploadHint.textContent = '已上传 ' + state.images.length + ' / 5 张';
+  }
+
+  uploadInput.addEventListener('change', async function () {
+    var files = Array.prototype.slice.call(uploadInput.files || []);
+    uploadInput.value = '';
+    if (!files.length) return;
+    var allowed = { 'image/jpeg': true, 'image/png': true };
+    for (var i = 0; i < files.length; i += 1) {
+      var file = files[i];
+      if (state.images.length >= 5) {
+        ERP.ui.toast('每个物料最多上传 5 张图片', 'warn');
+        break;
+      }
+      if (!allowed[file.type]) {
+        ERP.ui.toast('仅支持 jpg / png 格式图片', 'error');
+        continue;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        ERP.ui.toast('单张图片不能超过 5MB', 'error');
+        continue;
+      }
+      if (uploadHint) uploadHint.textContent = '正在上传 ' + (i + 1) + ' / ' + files.length + ' …';
+      try {
+        var result = await ERP.api.upload('/uploads', file);
+        state.images.push(result.url);
+      } catch (error) {
+        ERP.ui.toast(error.message || '图片上传失败', 'error');
+      }
+    }
+    renderUploadedImages();
+  });
+
+  uploadedGrid.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-remove-image]');
+    if (!button) return;
+    var index = Number(button.getAttribute('data-remove-image'));
+    state.images.splice(index, 1);
+    renderUploadedImages();
+  });
+
+  renderUploadedImages();
+
   applyMode();
 
   /* ---------------- 校验与保存 ---------------- */
@@ -336,7 +432,41 @@
     return message;
   }
 
-  function collectPayload() {
+  /** 解析分类：返回已有分类 id；超级管理员输入新名称时自动创建分类 */
+  async function resolveCategoryId() {
+    var raw = String(categorySelect.value || '').trim();
+    if (!raw) {
+      markInvalid(categorySelect, '请选择物料分类');
+      return { error: '请选择或输入物料分类' };
+    }
+    var categories = ERP.store.categories();
+    if (!isSuper) {
+      var foundById = null;
+      categories.forEach(function (category) {
+        if (String(category.id) === String(raw)) foundById = category;
+      });
+      if (!foundById) {
+        markInvalid(categorySelect, '分类不存在');
+        return { error: '请选择已有分类' };
+      }
+      return { id: foundById.id, name: foundById.name, created: false };
+    }
+
+    var foundByName = null;
+    categories.forEach(function (category) {
+      if (String(category.name).trim().toLowerCase() === raw.toLowerCase()) foundByName = category;
+    });
+    if (foundByName) return { id: foundByName.id, name: foundByName.name, created: false };
+
+    var result = await ERP.store.addCategory(raw);
+    if (!result.ok) {
+      markInvalid(categorySelect, result.error || '创建分类失败');
+      return { error: result.error || '创建分类失败' };
+    }
+    return { id: result.category.id, name: result.category.name, created: true };
+  }
+
+  function collectPayload(resolvedCategoryId) {
     clearInvalid();
     var errors = [];
 
@@ -346,13 +476,6 @@
 
     var model = String(modelInput.value || '').trim();
     if (!model) errors.push(markInvalid(modelInput, '请填写料号 / 型号'));
-
-    var categoryId = categorySelect.value;
-    if (!categoryId) {
-      var categoryField = categorySelect.closest('.field');
-      if (categoryField) categoryField.classList.add('is-invalid');
-      errors.push('请选择物料分类');
-    }
 
     var qty = 0;
     var minQty = 0;
@@ -394,7 +517,7 @@
       model: model,
       package: String($('#materialPackage').value || '').trim(),
       brand: String($('#materialBrand').value || '').trim(),
-      categoryId: categoryId,
+      categoryId: resolvedCategoryId,
       source: String($('#materialSource').value || '').trim(),
       spec: String($('#materialSpec').value || '').trim(),
       mode: state.mode,
@@ -404,7 +527,7 @@
       cabinet: String($('#materialCabinet').value || '').trim(),
       slot: String($('#materialSlot').value || '').trim(),
       inboundAt: inboundAt,
-      image: state.image,
+      image: state.images.length ? state.images.join(',') : state.image,
       note: String($('#materialNote').value || '').trim()
     };
   }
@@ -412,13 +535,21 @@
   form.addEventListener('submit', async function (event) {
     event.preventDefault();
     var saveBtn = $('#saveBtn');
-    var payload = collectPayload();
+    var payload = collectPayload(null);
     if (!payload) return;
 
     saveBtn.disabled = true;
     saveBtn.textContent = '保存中…';
 
     try {
+      var categoryResult = await resolveCategoryId();
+      if (categoryResult.error) {
+        ERP.ui.toast(categoryResult.error, 'error');
+        saveBtn.disabled = false;
+        saveBtn.textContent = editingId ? '保存修改' : '保存物料';
+        return;
+      }
+      payload.categoryId = categoryResult.id;
       var saved = await ERP.store.upsertMaterial(payload);
       ERP.ui.toast(editingId ? '物料档案已更新' : '物料已建档，可在详情页查看', 'ok');
       window.setTimeout(function () {

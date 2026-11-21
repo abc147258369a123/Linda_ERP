@@ -58,7 +58,11 @@
   var qty = Number(material.qty) || 0;
   var threshold = Number(material.minQty) || 0;
   var gap = Math.max(0, threshold - qty);
-  var image = ERP.url(material.image || 'assets/img/default.svg');
+  var imagePaths = String(material.image || '').split(',')
+    .map(function (item) { return item.trim(); })
+    .filter(Boolean);
+  if (!imagePaths.length) imagePaths = ['assets/img/default.svg'];
+  var image = ERP.ui.imageUrl(imagePaths[0]);
 
   /* ---------------- 顶部操作 ---------------- */
 
@@ -251,8 +255,18 @@
       '<div class="card detail-media-card">' +
         '<div class="card-bd">' +
           '<div class="detail-media">' +
-            '<img src="' + esc(image) + '" alt="' + esc(material.name) + '" loading="lazy">' +
+            '<img id="detailMainImage" src="' + esc(image) + '" alt="' + esc(material.name) + '" loading="lazy">' +
           '</div>' +
+          (imagePaths.length > 1
+            ? '<div class="detail-thumbs" id="detailThumbs">' +
+                imagePaths.map(function (path, index) {
+                  return '<button type="button" class="detail-thumb' + (index === 0 ? ' is-active' : '') + '" ' +
+                    'data-image-index="' + index + '" title="查看图片 ' + (index + 1) + '">' +
+                    '<img src="' + esc(ERP.ui.imageUrl(path)) + '" alt="图片 ' + (index + 1) + '" loading="lazy">' +
+                  '</button>';
+                }).join('') +
+              '</div>'
+            : '') +
           '<div class="detail-side-block">' +
             '<div class="detail-side-title">档案信息</div>' +
             '<dl class="detail-side-list">' +
@@ -328,6 +342,23 @@
         '</table>' +
       '</div>' +
     '</div>';
+
+  (function bindGallery() {
+    var main = document.getElementById('detailMainImage');
+    var thumbs = document.getElementById('detailThumbs');
+    if (!main || !thumbs) return;
+    thumbs.addEventListener('click', function (event) {
+      var button = event.target.closest('[data-image-index]');
+      if (!button) return;
+      var index = Number(button.getAttribute('data-image-index')) || 0;
+      var path = imagePaths[index];
+      if (!path) return;
+      main.src = ERP.ui.imageUrl(path);
+      ERP.ui.$all('.detail-thumb', thumbs).forEach(function (item) {
+        item.classList.toggle('is-active', item === button);
+      });
+    });
+  })();
 
   if (ERP.ui.getParam('denied') === '1') {
     ERP.ui.toast('当前角色无权执行该操作', 'warn');
