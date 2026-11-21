@@ -146,8 +146,9 @@ sed -i 's|^IMAGE_PREFIX=.*|IMAGE_PREFIX=|' .env
 ## 7. 前端说明（挂载目录）
 
 - 前端是**原生静态 HTML/CSS/JS，无需构建**，目录为项目内 `frontend/`。
-- Nginx 静态站点根目录：`<项目路径>/frontend`（默认 `/opt/linda_erp/frontend`）。
-- 前端页面通过同源 `/api/` 调用后端，无需关心端口；静态资源与上传图片由 Nginx 直接提供。
+- compose 内 `linda_erp_web`（nginx:alpine，host 网络）把 `./frontend` 只读挂载到容器 `/usr/share/nginx/html`，监听 **8088**，同时反代 `/api/` 与 `/uploads/`。
+- 若宿主机已安装 Nginx，也可使用 `nginx/linda_erp.conf` 作为 80 端口入口（静态根目录为 `<项目路径>/frontend`）。
+- 前端页面通过同源 `/api/` 调用后端；静态资源与上传图片由 Nginx 直接提供。
 - 生产部署建议把 `frontend/js/config.js` 的 `dev: true` 改为 `false`（关闭开发期自动刷新）。
 
 ## 8. 持久化目录清单（docker 挂载）
@@ -155,9 +156,10 @@ sed -i 's|^IMAGE_PREFIX=.*|IMAGE_PREFIX=|' .env
 | 宿主机目录 | 容器路径 | 用途 |
 | --- | --- | --- |
 | `./data/mariadb` | `/var/lib/mysql` | MariaDB 数据文件 |
-| `./data/uploads` | `/app/uploads` | 物料图片等上传附件（Nginx `/uploads/` 直接读取） |
+| `./data/uploads` | `/app/uploads`（后端）、`/data/uploads`（Nginx 只读） | 物料图片等上传附件 |
 | `./data/logs` | `/app/logs` | 后端运行日志（10MB × 5 滚动） |
 | `./data/backups` | 宿主机保留 | 数据库备份（建议脚本 `mariadb-dump` 输出） |
+| `./frontend` | `/usr/share/nginx/html`（Nginx 只读） | 前端静态页面 |
 
 > 备份建议：`docker compose exec -T mariadb mariadb-dump -uroot -p"$DB_ROOT_PASSWORD" --single-transaction linda_erp > data/backups/linda_erp_$(date +%F).sql`
 
@@ -167,7 +169,10 @@ sed -i 's|^IMAGE_PREFIX=.*|IMAGE_PREFIX=|' .env
 | --- | --- | --- |
 | 后端 Uvicorn | **127.0.0.1:8000** | 容器使用 host 网络，严格只监听回环；外部经 Nginx 访问 |
 | MariaDB | **127.0.0.1:3306** | compose 端口映射 `127.0.0.1:3306:3306`，不对外 |
-| Nginx | `0.0.0.0:80` | 唯一对局域网开放的入口 |
+| 前端 Nginx | `0.0.0.0:8088` | compose 内 `linda_erp_web`；避开宿主机已有 NPM 的 80/81/443 |
+| 宿主机 Nginx（可选） | `0.0.0.0:80` | 仅在宿主机安装 Nginx 且 80 空闲时使用 |
+
+> 本机实机环境已有 Nginx Proxy Manager 占用 80/81/443，因此采用容器 Nginx 监听 8088，不影响原有服务；如需域名/HTTPS，可在 NPM 中把域名反代到 `http://10.34.126.41:8088`。
 
 ## 10. 健康检查命令
 
@@ -175,13 +180,16 @@ sed -i 's|^IMAGE_PREFIX=.*|IMAGE_PREFIX=|' .env
 curl -fsS http://127.0.0.1:8000/api/health
 # 期望：{"status":"ok","service":"linda-erp-backend","version":"1.0.0","environment":"production","database":"ok"}
 
-# 经 Nginx：
-curl -fsS http://<树莓派IP>/api/health
+# 经前端 Nginx 容器（8088）：
+curl -fsS http://127.0.0.1:8088/api/health
 ```
 
 ## 11. Nginx 反向代理要点
 
-配置文件：[`nginx/linda_erp.conf`](../nginx/linda_erp.conf)
+配置文件：
+
+- 容器 Nginx：[`nginx/linda_erp.container.conf`](../nginx/linda_erp.container.conf)（compose 默认使用，监听 8088）
+- 宿主机 Nginx：[`nginx/linda_erp.conf`](../nginx/linda_erp.conf)（可选）
 
 - **无需 WebSocket**：本项目为纯 HTTP/JSON 接口，未使用 WebSocket。
 - **文件上传上限**：`client_max_body_size 10m`（与后端 `MAX_UPLOAD_MB=10` 一致）。

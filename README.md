@@ -37,12 +37,14 @@ Linda_ERP/
 ├── docs/
 │   ├── BACKEND.md            后端交付说明（12 项要求）
 │   └── FRONTEND-INTEGRATION.md  前端对接后端修改指南
-├── nginx/linda_erp.conf      Nginx 反向代理配置
+├── nginx/
+│   ├── linda_erp.conf        宿主机 Nginx 反代配置（可选 80 端口）
+│   └── linda_erp.container.conf  compose 内 Nginx 容器配置（8088）
 ├── scripts/
 │   ├── deploy-pi.sh          树莓派一键部署脚本
 │   ├── dev-server.js         本地静态预览服务器（仅开发用）
 │   └── git-push.ps1          一键 add / commit / push（可选打 tag）
-├── docker-compose.yml        后端 + MariaDB（端口只绑定 127.0.0.1）
+├── docker-compose.yml        后端 + MariaDB + 前端 Nginx（端口只绑定 127.0.0.1 / 前端 8088）
 ├── .env.example              环境变量模板（含机密项标注）
 └── README.md
 ```
@@ -69,15 +71,20 @@ node scripts/dev-server.js 8090
 
 ```bash
 # 1. 将项目上传到树莓派，如 /opt/linda_erp
-# 2. 一键部署（自动生成密钥、建表、启动、健康检查、初始化管理员、配置 Nginx）
+# 2. 一键部署（自动生成密钥、建表、启动、健康检查、初始化管理员）
 sudo bash scripts/deploy-pi.sh
 
-# 3. 验证
+# 3. 验证（后端只监听 127.0.0.1；前端容器监听 8088）
 curl -fsS http://127.0.0.1:8000/api/health
+curl -fsS http://127.0.0.1:8088/api/health
+
+# 4. 局域网访问
+# 前端：http://<树莓派IP>:8088/
+# API 文档：http://<树莓派IP>:8088/api/docs
 ```
 
 - 后端交付细节（技术栈 / 依赖锁定 / 建表 SQL / 环境变量 / 生产启动 / 持久化 / 端口 / 健康检查 / Nginx / 管理员初始化）：见 **[docs/BACKEND.md](docs/BACKEND.md)**
-- 接口文档（运行后）：`http://<树莓派IP>/api/docs`
+- 接口文档（运行后）：`http://<树莓派IP>:8088/api/docs`
 
 ## 角色与权限
 
@@ -128,7 +135,7 @@ curl -fsS http://127.0.0.1:8000/api/health
 - [x] 领用登记（单条 + 批量使用车）、库存预警、分类管理、领用日志、用户管理
 - [x] 三级角色权限、访问记录、活力色块 UI 主题
 
-**后端（已完成，待树莓派实机部署验证）**
+**后端（已完成，并已在树莓派实机部署验证）**
 
 - [x] 用户登录（JWT + bcrypt）、角色权限
 - [x] 物料档案管理、物料分类
@@ -136,4 +143,5 @@ curl -fsS http://127.0.0.1:8000/api/health
 - [x] 库存查询、低库存预警、流水日志
 - [x] 用户管理、成员访问记录、图片上传
 - [x] Dockerfile / docker-compose / Nginx 配置 / 一键部署脚本
-- [ ] 树莓派实机部署与前端接口联调
+- [x] 树莓派实机部署（后端 + MariaDB + Nginx 容器，8088 入口）
+- [ ] 前端数据层切换为后端 API（当前仍为 localStorage 演示）

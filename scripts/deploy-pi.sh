@@ -51,7 +51,7 @@ if [ ! -f .env ]; then
   sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD}|" .env
   sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|" .env
   sed -i "s|^INIT_ADMIN_PASSWORD=.*|INIT_ADMIN_PASSWORD=${ADMIN_PASSWORD}|" .env
-  sed -i "s|^CORS_ORIGINS=.*|CORS_ORIGINS=http://${LAN_IP},http://127.0.0.1:8090,http://localhost:8090|" .env
+  sed -i "s|^CORS_ORIGINS=.*|CORS_ORIGINS=http://${LAN_IP}:8088,http://${LAN_IP},http://127.0.0.1:8088,http://127.0.0.1:8090,http://localhost:8090|" .env
   chmod 600 .env
   log "已生成 .env（请妥善保管，勿提交 Git）"
 else
@@ -81,7 +81,7 @@ if ! docker compose build backend; then
   fail "后端镜像构建失败。请检查 .env 的 PIP_INDEX_URL / IMAGE_PREFIX 与网络，或使用离线镜像方案"
 fi
 
-log "启动服务（后端 4GB / 数据库 2GB 内存限制）"
+log "启动服务（后端 4GB / 数据库 2GB / 前端 Nginx 256MB 内存限制）"
 docker compose up -d
 
 # ---------------------------------------------------------------- 4. 等待健康检查
@@ -100,6 +100,21 @@ if [ "$HEALTH_OK" -ne 1 ]; then
 fi
 log "后端健康检查通过：$(curl -fsS http://127.0.0.1:8000/api/health)"
 
+log "等待前端 Nginx（8088）就绪 …"
+WEB_OK=0
+for _ in $(seq 1 20); do
+  if curl -fsS --max-time 3 http://127.0.0.1:8088/login.html >/dev/null 2>&1; then
+    WEB_OK=1
+    break
+  fi
+  sleep 2
+done
+if [ "$WEB_OK" -ne 1 ]; then
+  warn "前端 Nginx 容器未就绪，请查看：docker compose logs --tail=80 web"
+  fail "部署中止"
+fi
+log "前端容器就绪：http://127.0.0.1:8088/"
+
 # ---------------------------------------------------------------- 5. 初始化管理员
 log "初始化管理员账号：${INIT_ADMIN_USERNAME}（角色 ${INIT_ADMIN_ROLE}）"
 printf '%s\n' "${INIT_ADMIN_PASSWORD}" | docker compose exec -T backend \
@@ -110,9 +125,11 @@ printf '%s\n' "${INIT_ADMIN_PASSWORD}" | docker compose exec -T backend \
   --note "初始超级管理员" \
   --password-stdin || warn "管理员 ${INIT_ADMIN_USERNAME} 已存在，跳过创建"
 
-# ---------------------------------------------------------------- 6. Nginx
+# ---------------------------------------------------------------- 6. 可选：宿主机 Nginx
+# compose 内已包含 Nginx 容器（监听 8088）提供前端与 /api 反代；
+# 若宿主机另外安装了 Nginx 且 80 端口空闲，可额外配置 80 端口入口。
 if command -v nginx >/dev/null 2>&1; then
-  log "配置 Nginx 反向代理（项目路径：${PROJECT_DIR}）"
+  log "检测到宿主机 Nginx，配置 80 端口入口（项目路径：${PROJECT_DIR}）"
   TMP_CONF="$(mktemp)"
   sed -e "s|__PROJECT_DIR__|${PROJECT_DIR}|g" \
       -e "s|__SERVER_NAME__|_|g" \
@@ -122,10 +139,9 @@ if command -v nginx >/dev/null 2>&1; then
   sudo rm -f /etc/nginx/sites-enabled/default
   sudo nginx -t
   sudo systemctl reload nginx
-  log "Nginx 已重载"
+  log "宿主机 Nginx 已重载"
 else
-  warn "未安装 Nginx，已跳过反向代理配置。"
-  warn "安装后执行：sudo cp nginx/linda_erp.conf /etc/nginx/sites-available/linda_erp.conf && sudo ln -s ..."
+  log "未安装宿主机 Nginx，使用 compose 内的 linda_erp_web 容器（8088）提供前端"
 fi
 
 # ---------------------------------------------------------------- 7. 生产模式提示
@@ -141,13 +157,14 @@ cat <<EOF
 ============================================================
  Linda_ERP 部署完成 ✅
 ------------------------------------------------------------
- 前端：      http://${LAN_IP}/
+ 前端：      http://${LAN_IP}:8088/
  后端健康：  curl http://127.0.0.1:8000/api/health
- API 文档：  http://${LAN_IP}/api/docs
+ API 文档：  http://${LAN_IP}:8088/api/docs
  管理员：    ${INIT_ADMIN_USERNAME} / ${INIT_ADMIN_PASSWORD}
              （已写入 .env 的 INIT_ADMIN_PASSWORD，请尽快修改）
  数据目录：  ${PROJECT_DIR}/data
- 查看日志：  docker compose logs -f backend
+ 服务状态：  docker compose ps
+ 查看日志：  docker compose logs -f backend web
  重启：      docker compose restart
  停止：      docker compose down
 ============================================================

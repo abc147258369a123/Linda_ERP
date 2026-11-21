@@ -19,7 +19,7 @@ COPY app ./app
 
 RUN mkdir -p /app/uploads /app/logs \
     && addgroup --gid 1000 app \
-    && adduser --uid 1000 --gid app --disabled-password --gecos "" app \
+    && adduser --uid 1000 --ingroup app --disabled-password --gecos "" app \
     && chown -R app:app /app
 
 USER app
