@@ -3,6 +3,8 @@
  * - 简易模式自动隐藏数量与预警阈值；精确计数模式才显示
  * - 入库时间由系统自动填充，只读不可手改
  * - 新建后跳转到详情页；编辑时复用本页（?id=xxx）
+ * - 物料分类使用一 / 二 / 三级级联下拉，始终绑定最深一级（叶子）分类 id
+ * - 编辑已有物料时，超级管理员可在底部操作区直接删除该物料（不可恢复）
  */
 (async function () {
   'use strict';
@@ -45,6 +47,9 @@
 
   /* ---------------- 初始状态 ---------------- */
 
+  // 是否为「编辑已有物料」模式：新增模式不出现删除入口
+  var isEditing = Boolean(editingId && editing);
+
   var inboundAt = editing ? editing.inboundAt : ERP.store.now();
   var editingImages = editing && editing.image
     ? String(editing.image).split(',').map(function (item) { return item.trim(); })
@@ -79,31 +84,44 @@
     { file: 'perfboard.svg', label: '洞洞板' }
   ];
 
-  var categoryList = ERP.store.categories();
-  var editingCategoryName = '';
-  if (editing) {
-    categoryList.forEach(function (category) {
-      if (String(category.id) === String(editing.categoryId)) editingCategoryName = category.name;
-    });
-  }
-  // 分类下拉只显示名称，不带任何序号；超级管理员使用“可输入 + datalist”复合控件
-  var categoryOptions = '<option value="">请选择分类</option>' +
-    categoryList.map(function (category) {
-      return '<option value="' + esc(category.id) + '"' +
-        (editing && String(editing.categoryId) === String(category.id) ? ' selected' : '') + '>' +
-        esc(category.name) + '</option>';
-    }).join('');
-  var categoryFieldHtml = isSuper
-    ? '<input class="input input-lg" id="materialCategory" type="text" list="materialCategoryList" autocomplete="off" ' +
-        'placeholder="选择已有分类，或直接输入新分类名称" value="' + esc(editingCategoryName) + '">' +
-      '<datalist id="materialCategoryList">' +
-        categoryList.map(function (category) {
-          return '<option value="' + esc(category.name) + '"></option>';
-        }).join('') +
-      '</datalist>' +
-      '<span class="field-hint">超级管理员可输入新分类名称，保存物料时会自动创建分类</span>'
-    : '<select class="select select-lg" id="materialCategory">' + categoryOptions + '</select>' +
-      '<span class="field-hint">普通管理员只能选择已有分类；新增分类请联系超级管理员</span>';
+  /* ---------------- 物料分类：三级级联下拉（v1.4.0） ---------------- */
+
+  // 分类树层级不固定，按实际 children 动态展开；最多展示 3 级，
+  // 超过 3 级的分类只取前 3 级（第 3 级即视为末级分类）。
+  var MAX_CATEGORY_LEVEL = 3;
+  var LEVEL_LABELS = ['一', '二', '三'];
+
+  // 分类树快照（ERP.store.categoryTree()），每次渲染前刷新
+  var categoryTreeCache = ERP.store.categoryTree();
+  // 已选分类节点链：categoryChain[0] 一级、[1] 二级、[2] 三级；未选为 null
+  var categoryChain = [];
+  // 编辑模式下原分类已不在分类树中时的提示文案（非空即显示）
+  var categoryMissingTip = '';
+
+  // 三个级联下拉对所有角色使用同一套逻辑；超级管理员额外多一个「新建子分类」按钮
+  // 布局：占满表单整行 + 弹性排布，桌面同一行、窄屏自动换行，沿用页面 .select 样式
+  var categoryFieldHtml =
+    '<div style="display:flex;flex-wrap:wrap;gap:10px">' +
+      '<select class="select" id="categoryLevel1" aria-label="一级分类" style="flex:1 1 170px;min-width:0">' +
+        '<option value="">请选择一级分类</option>' +
+      '</select>' +
+      '<select class="select" id="categoryLevel2" aria-label="二级分类" style="flex:1 1 170px;min-width:0">' +
+        '<option value="">请选择二级分类</option>' +
+      '</select>' +
+      '<select class="select" id="categoryLevel3" aria-label="三级分类" style="flex:1 1 170px;min-width:0">' +
+        '<option value="">请选择三级分类</option>' +
+      '</select>' +
+    '</div>' +
+    '<span class="field-hint" id="categoryHint">按一 / 二 / 三级依次选择，选到最末一级分类即可保存</span>' +
+    '<span class="field-hint" id="categoryPathTip" style="color:var(--warn);display:none"></span>' +
+    (isSuper
+      ? '<div style="margin-top:2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+          '<button class="btn btn-sm" type="button" id="addChildCategoryBtn">' +
+            ERP.icon('plus', 14) + '新建子分类' +
+          '</button>' +
+          '<span class="field-hint">在当前选中的分类下新建；未选分类时新建一级分类</span>' +
+        '</div>'
+      : '');
 
   var sourceList = [];
   ERP.store.materials().forEach(function (material) {
@@ -128,6 +146,13 @@
   var formDesc = editingId
     ? '正在编辑 ' + editing.id + ' · 入库时间保持原值，不可修改'
     : '带 * 为必填项 · 入库时间由系统自动填充';
+
+  // 删除入口：只在「编辑已有物料 + 超级管理员」时渲染，普通管理员不输出该节点（不用 CSS 隐藏）
+  var deleteButtonHtml = isEditing && isSuper
+    ? '<button class="btn btn-danger" type="button" id="deleteMaterialBtn" style="margin-right:auto">' +
+        ERP.icon('trash', 15) + '删除物料' +
+      '</button>'
+    : '';
 
   page.innerHTML =
     '<div class="page-head">' +
@@ -179,8 +204,8 @@
                 'placeholder="如：Espressif / 国产" value="' +
                 esc(editing ? editing.brand : '') + '">' +
             '</div>' +
-            '<div class="field">' +
-              '<label class="label" for="materialCategory">物料分类<span class="req">*</span></label>' +
+            '<div class="field is-full" id="categoryCascadeField">' +
+              '<label class="label" for="categoryLevel1">物料分类<span class="req">*</span></label>' +
               categoryFieldHtml +
             '</div>' +
             '<div class="field">' +
@@ -302,6 +327,7 @@
       '</div>' +
 
       '<div class="form-actions">' +
+        deleteButtonHtml +
         '<a class="btn" href="' + esc(editingId ? detailHref(editing.id) : ERP.url('index.html')) + '">取消</a>' +
         '<button class="btn btn-primary" type="submit" id="saveBtn">' +
           (editingId ? '保存修改' : '保存物料') +
@@ -309,11 +335,297 @@
       '</div>' +
     '</form>';
 
+  /* ---------------- 物料分类：级联渲染 / 联动 / 回填 ---------------- */
+
+  var categoryField = $('#categoryCascadeField');
+  var categoryLevel1 = $('#categoryLevel1');
+  var categoryLevel2 = $('#categoryLevel2');
+  var categoryLevel3 = $('#categoryLevel3');
+  var categoryHint = $('#categoryHint');
+  var categoryPathTip = $('#categoryPathTip');
+  var addChildCategoryBtn = $('#addChildCategoryBtn');
+
+  function levelSelect(level) {
+    if (level === 1) return categoryLevel1;
+    if (level === 2) return categoryLevel2;
+    return categoryLevel3;
+  }
+
+  function hasChildren(node) {
+    return Boolean(node && node.children && node.children.length);
+  }
+
+  /** 已选链截断到 level 级（丢弃更深层级的选择） */
+  function truncateChain(level) {
+    if (categoryChain.length > level) categoryChain.length = level;
+  }
+
+  /**
+   * 从分类树自底向上找完整路径（父 → … → 自身）。
+   * 找不到（分类已删除 / 不在树中）返回空数组。
+   */
+  function resolvePath(categoryId) {
+    var target = String(categoryId === null || categoryId === undefined ? '' : categoryId);
+    var path = [];
+    if (!target) return path;
+    function walk(nodes, chain) {
+      for (var i = 0; i < nodes.length; i += 1) {
+        var node = nodes[i];
+        var next = chain.concat([node]);
+        if (String(node.id) === target) {
+          path = next;
+          return true;
+        }
+        if (hasChildren(node) && walk(node.children, next)) return true;
+      }
+      return false;
+    }
+    walk(categoryTreeCache, []);
+    return path;
+  }
+
+  /** 某一级的候选分类：一级取根节点，二 / 三级取上一级已选节点的 children */
+  function candidatesOf(level) {
+    if (level === 1) return categoryTreeCache;
+    var parent = categoryChain[level - 2];
+    return hasChildren(parent) ? parent.children : [];
+  }
+
+  /** 按路径（根 → 叶）整体预选，用于编辑回填与新建分类后自动选中 */
+  function setCategoryChain(path) {
+    var list = path || [];
+    categoryChain = [];
+    for (var i = 0; i < list.length && i < MAX_CATEGORY_LEVEL; i += 1) {
+      categoryChain[i] = list[i];
+    }
+  }
+
+  /** 生成第 level 级的 option 列表（含占位项，已选分类带 selected） */
+  function buildTreeOptions(level) {
+    var html = '<option value="">请选择' + LEVEL_LABELS[level - 1] + '级分类</option>';
+    var current = categoryChain[level - 1] || null;
+    var currentKey = current ? String(current.id) : '';
+    candidatesOf(level).forEach(function (node) {
+      var key = String(node.id);
+      html += '<option value="' + esc(key) + '"' + (currentKey && key === currentKey ? ' selected' : '') + '>' +
+        esc(node.name) + '</option>';
+    });
+    return html;
+  }
+
+  /** 渲染第 level 级下拉：无候选时禁用并提示，否则重建 option 并回填已选值 */
+  function renderLevel(level) {
+    var select = levelSelect(level);
+    if (!select) return;
+    var candidates = candidatesOf(level);
+
+    if (!candidates.length) {
+      // 上一级没有子分类（或整棵树为空）：禁用并提示，避免误以为还能继续选
+      truncateChain(level - 1);
+      var emptyText;
+      if (level === 1) emptyText = '暂无可选分类';
+      else if (!categoryChain[level - 2]) emptyText = '请选择' + LEVEL_LABELS[level - 1] + '级分类';
+      else emptyText = '无子分类';
+      select.innerHTML = '<option value="">' + emptyText + '</option>';
+      select.disabled = true;
+      select.value = '';
+      return;
+    }
+
+    select.innerHTML = buildTreeOptions(level);
+    select.disabled = false;
+
+    var matched = null;
+    var selectedValue = String(select.value || '');
+    candidates.forEach(function (node) {
+      if (String(node.id) === selectedValue) matched = node;
+    });
+    if (matched) categoryChain[level - 1] = matched;
+    else truncateChain(level - 1); // 历史选中值已不在候选里（分类被删 / 移动）：清空该级与更深层级
+  }
+
+  function renderAllLevels() {
+    renderLevel(1);
+    renderLevel(2);
+    renderLevel(3);
+  }
+
+  /** 把某一级下拉的当前值写回已选链，返回命中的节点 */
+  function applyLevelValue(level, value) {
+    var matched = null;
+    candidatesOf(level).forEach(function (node) {
+      if (String(node.id) === String(value)) matched = node;
+    });
+    if (!matched) {
+      truncateChain(level - 1);
+      return null;
+    }
+    categoryChain[level - 1] = matched;
+    truncateChain(level); // 换父级后更深层级的选择作废
+    return matched;
+  }
+
+  /** 一级变化 → 重建二级 / 三级 */
+  function syncLevel2() {
+    renderLevel(2);
+    renderLevel(3);
+  }
+
+  /** 二级变化 → 重建三级 */
+  function syncLevel3() {
+    renderLevel(3);
+  }
+
+  function onLevelChange(level) {
+    var select = levelSelect(level);
+    if (!select) return;
+    applyLevelValue(level, select.value);
+    categoryMissingTip = ''; // 用户已重新选择，历史分类缺失提示不再需要
+    if (level === 1) syncLevel2();
+    else if (level === 2) syncLevel3();
+    updateCategoryHint();
+  }
+
+  /** 最深一级已选分类：叶子或第 3 级时它就是最终分类 */
+  function deepestSelected() {
+    for (var i = MAX_CATEGORY_LEVEL - 1; i >= 0; i -= 1) {
+      var node = categoryChain[i];
+      if (node) return { node: node, level: i + 1 };
+    }
+    return null;
+  }
+
+  /** 是否已选到末级：叶子分类，或已达到第 3 级（最多只支持 3 级） */
+  function categoryComplete() {
+    var deepest = deepestSelected();
+    if (!deepest) return false;
+    if (deepest.level >= MAX_CATEGORY_LEVEL) return true;
+    return !hasChildren(deepest.node);
+  }
+
+  /** 已选路径文案：基础元件 / 电阻 / 贴片电阻 */
+  function categoryPathText() {
+    var names = [];
+    for (var i = 0; i < categoryChain.length; i += 1) {
+      if (categoryChain[i]) names.push(categoryChain[i].name);
+    }
+    return names.join(' / ');
+  }
+
+  /** 底部提示：未选 / 未选到末级 / 当前分类路径 + 历史分类缺失提示 */
+  function updateCategoryHint() {
+    var deepest = deepestSelected();
+    if (categoryPathTip) {
+      categoryPathTip.style.display = categoryMissingTip ? '' : 'none';
+      categoryPathTip.textContent = categoryMissingTip;
+    }
+    if (categoryHint) {
+      if (!deepest) {
+        categoryHint.textContent = '按一 / 二 / 三级依次选择，选到最末一级分类即可保存';
+      } else if (!categoryComplete()) {
+        categoryHint.textContent = '「' + deepest.node.name + '」下还有子分类，请继续选择到最末一级';
+      } else {
+        categoryHint.textContent = '当前分类：' + categoryPathText();
+      }
+    }
+    // 选到末级后自动去掉校验高亮
+    if (categoryComplete() && categoryField) categoryField.classList.remove('is-invalid');
+  }
+
+  /** 编辑模式：按 editing.categoryId 自底向上找路径并逐级预选 */
+  function applyEditingCategory() {
+    categoryChain = [];
+    categoryMissingTip = '';
+    if (!editing) return;
+    var raw = editing.categoryId;
+    if (raw === null || raw === undefined || String(raw) === '') return;
+
+    var path = resolvePath(raw);
+    if (!path.length) {
+      // 历史分类可能已被删除或移出分类树：提示并允许重新选择
+      categoryMissingTip = '原有分类「' + (editing.categoryName || raw) +
+        '」已不在分类树中，请重新选择分类后再保存';
+      return;
+    }
+    if (path.length > MAX_CATEGORY_LEVEL) {
+      categoryMissingTip = '原有分类超过 ' + MAX_CATEGORY_LEVEL + ' 级，已取前 ' + MAX_CATEGORY_LEVEL + ' 级：' +
+        path.slice(0, MAX_CATEGORY_LEVEL).map(function (node) { return node.name; }).join(' / ');
+    }
+    setCategoryChain(path.slice(0, MAX_CATEGORY_LEVEL));
+  }
+
+  /** 渲染级联：刷新分类树 → 编辑回填 → 逐级渲染 → 更新提示 */
+  function renderCategoryCascade() {
+    categoryTreeCache = ERP.store.categoryTree();
+    applyEditingCategory();
+    renderAllLevels();
+    updateCategoryHint();
+  }
+
+  /** 超管：在当前选中分类下新建子分类（未选分类则新建一级分类） */
+  function addChildCategory() {
+    if (!isSuper) return;
+    var deepest = deepestSelected();
+    if (deepest && deepest.level >= MAX_CATEGORY_LEVEL) {
+      ERP.ui.toast('最多支持 ' + MAX_CATEGORY_LEVEL + ' 级分类，请在更浅的层级上新建子分类', 'warn');
+      return;
+    }
+    var parent = deepest ? deepest.node : null;
+    ERP.ui.prompt({
+      title: parent ? '新建子分类' : '新建一级分类',
+      label: '分类名称',
+      placeholder: parent ? '如：贴片电阻' : '如：电阻',
+      hint: parent ? '将添加到「' + parent.name + '」下' : '当前未选择父级分类，将创建为一级分类',
+      okText: '创建分类'
+    }).then(async function (value) {
+      if (value === null) return;
+      var name = String(value || '').trim();
+      if (!name) {
+        ERP.ui.toast('分类名称不能为空', 'warn');
+        return;
+      }
+      if (addChildCategoryBtn) addChildCategoryBtn.disabled = true;
+      var result;
+      try {
+        result = await ERP.store.addCategory(name, parent ? parent.id : null);
+      } catch (error) {
+        result = { ok: false, error: error.message };
+      }
+      if (addChildCategoryBtn) addChildCategoryBtn.disabled = false;
+      if (!result.ok) {
+        ERP.ui.toast(result.error || '新建分类失败', 'error');
+        return;
+      }
+      // addCategory 内部已刷新缓存：重建分类树，并自动选中新建的分类
+      categoryTreeCache = ERP.store.categoryTree();
+      setCategoryChain(resolvePath(result.category.id));
+      categoryMissingTip = '';
+      renderAllLevels();
+      updateCategoryHint();
+      ERP.ui.toast('分类「' + result.category.name + '」已创建', 'ok');
+    });
+  }
+
+  [1, 2, 3].forEach(function (level) {
+    var select = levelSelect(level);
+    if (select) {
+      select.addEventListener('change', function () { onLevelChange(level); });
+    }
+  });
+
+  if (addChildCategoryBtn) addChildCategoryBtn.addEventListener('click', addChildCategory);
+
+  // 分类缓存为空（数据还没加载完）时补一次加载再渲染；页面原有的 await ERP.store.load() 时机不变
+  if (ERP.store.categories().length) {
+    renderCategoryCascade();
+  } else {
+    ERP.store.load().then(renderCategoryCascade, renderCategoryCascade);
+  }
+
   /* ---------------- 联动与交互 ---------------- */
 
   var nameInput = $('#materialName');
   var modelInput = $('#materialModel');
-  var categorySelect = $('#materialCategory');
   var qtyInput = $('#materialQty');
   var minQtyInput = $('#materialMinQty');
   var form = $('#materialForm');
@@ -427,43 +739,37 @@
     });
   }
   function markInvalid(input, message) {
-    var field = input.closest('.field');
+    var field = input && input.closest ? input.closest('.field') : null;
     if (field) field.classList.add('is-invalid');
     return message;
   }
 
-  /** 解析分类：返回已有分类 id；超级管理员输入新名称时自动创建分类 */
+  /**
+   * 解析分类：直接读取三级级联的最终选中值（最深一级已选中的分类 id）。
+   * 原「按输入名称查找 / 自动新建分类」的逻辑已删除，改由级联选择器 + 「新建子分类」按钮承担。
+   */
   async function resolveCategoryId() {
-    var raw = String(categorySelect.value || '').trim();
-    if (!raw) {
-      markInvalid(categorySelect, '请选择物料分类');
-      return { error: '请选择或输入物料分类' };
+    // 分类缓存为空（例如数据还没加载完）时补一次加载，再按空树提示
+    if (!ERP.store.categories().length) {
+      try { await ERP.store.load(); } catch (error) { /* 忽略：下面按空树提示 */ }
+      categoryTreeCache = ERP.store.categoryTree();
+      renderAllLevels();
+      updateCategoryHint();
     }
-    var categories = ERP.store.categories();
-    if (!isSuper) {
-      var foundById = null;
-      categories.forEach(function (category) {
-        if (String(category.id) === String(raw)) foundById = category;
-      });
-      if (!foundById) {
-        markInvalid(categorySelect, '分类不存在');
-        return { error: '请选择已有分类' };
-      }
-      return { id: foundById.id, name: foundById.name, created: false };
+    if (!categoryTreeCache.length) {
+      markInvalid(categoryLevel1, '请选择物料分类');
+      return { error: '暂无可选分类，请联系超级管理员创建分类' };
     }
-
-    var foundByName = null;
-    categories.forEach(function (category) {
-      if (String(category.name).trim().toLowerCase() === raw.toLowerCase()) foundByName = category;
-    });
-    if (foundByName) return { id: foundByName.id, name: foundByName.name, created: false };
-
-    var result = await ERP.store.addCategory(raw);
-    if (!result.ok) {
-      markInvalid(categorySelect, result.error || '创建分类失败');
-      return { error: result.error || '创建分类失败' };
+    var deepest = deepestSelected();
+    if (!deepest) {
+      markInvalid(categoryLevel1, '请选择物料分类');
+      return { error: '请选择物料分类' };
     }
-    return { id: result.category.id, name: result.category.name, created: true };
+    if (!categoryComplete()) {
+      markInvalid(levelSelect(deepest.level), '请选择完整的分类');
+      return { error: '请选择完整的分类' };
+    }
+    return { id: deepest.node.id, name: deepest.node.name };
   }
 
   function collectPayload(resolvedCategoryId) {
@@ -561,4 +867,77 @@
       saveBtn.textContent = editingId ? '保存修改' : '保存物料';
     }
   });
+
+  /* ---------------- 删除物料（仅编辑已有物料 + 超级管理员） ---------------- */
+
+  /**
+   * 删除确认弹窗正文：物料名称 / 档案编号 / 型号 + 连带删除范围说明。
+   * 本页只加载了全局最近日志，条数不可靠，因此这里不写具体流水数字，只给通用提示。
+   */
+  function deleteConfirmHtml() {
+    return '<dl class="detail-list">' +
+        '<div class="detail-item is-full">' +
+          '<dt>物料名称</dt><dd>' + esc(editing.name || '—') + '</dd>' +
+        '</div>' +
+        '<div class="detail-item">' +
+          '<dt>档案编号</dt><dd class="mono">' + esc(editing.id || '—') + '</dd>' +
+        '</div>' +
+        '<div class="detail-item">' +
+          '<dt>型号</dt><dd class="mono">' + esc(editing.model || '—') + '</dd>' +
+        '</div>' +
+      '</dl>' +
+      '<p style="margin:14px 0 0; color:var(--danger); font-weight:600; line-height:1.6">' +
+        '删除后不可恢复；该物料的领用 / 入库流水与出入库单明细会一并删除。' +
+      '</p>' +
+      '<p class="small muted" style="margin:6px 0 0">' +
+        '删除会同时清理因此变空的出入库单；本页尚未保存的表单修改也会一同放弃，请谨慎操作。' +
+      '</p>';
+  }
+
+  // deleting 标记用于防重复点击：确认后按钮立即禁用，成功跳转前不再响应点击
+  var deleting = false;
+
+  async function deleteEditingMaterial() {
+    if (!isEditing || !isSuper || deleting) return;
+    var button = $('#deleteMaterialBtn');
+    if (!button) return;
+    var originalHtml = button.innerHTML;
+
+    var confirmed = await ERP.ui.confirm({
+      title: '删除物料',
+      html: deleteConfirmHtml(),
+      okText: '确认删除',
+      danger: true
+    });
+    if (!confirmed) return;
+
+    deleting = true;
+    button.disabled = true;
+    button.innerHTML = ERP.icon('trash', 15) + '删除中…';
+
+    try {
+      // 删除成功即跳转物料总览，不再走表单保存流程
+      await ERP.api.del('/materials/' + editing.dbId);
+      // 缓存刷新失败不影响已经完成的删除，随后整页跳转会重新拉取数据
+      try {
+        await ERP.store.refresh();
+      } catch (refreshError) { /* 忽略刷新失败 */ }
+      ERP.ui.toast('物料已删除', 'ok');
+      window.setTimeout(function () {
+        window.location.href = ERP.url('index.html');
+      }, 320);
+    } catch (error) {
+      ERP.ui.toast(error.message || '删除失败，请稍后重试', 'error');
+      deleting = false;
+      button.disabled = false;
+      button.innerHTML = originalHtml;
+    }
+  }
+
+  var deleteButton = $('#deleteMaterialBtn');
+  if (deleteButton) {
+    deleteButton.addEventListener('click', function () {
+      deleteEditingMaterial();
+    });
+  }
 })();

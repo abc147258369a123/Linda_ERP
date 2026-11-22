@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .db import get_db, wait_for_db
-from .routers import auth, categories, dashboard, inventory, materials, stock, uploads, users
+from .routers import auth, categories, dashboard, inventory, materials, settings as settings_router, stock, ui_settings, uploads, users
 
 LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
 
@@ -78,6 +78,8 @@ app.include_router(materials.router)
 app.include_router(stock.router)
 app.include_router(inventory.router)
 app.include_router(dashboard.router)
+app.include_router(settings_router.router)
+app.include_router(ui_settings.router)
 app.include_router(uploads.router)
 
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")

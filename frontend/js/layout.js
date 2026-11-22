@@ -81,6 +81,82 @@
     document.addEventListener('keydown', onKey);
   }
 
+  /* ---------------- 站点自定义配置（v1.3.0）：品牌区 / 退出弹窗 ---------------- */
+
+  /** 顶栏副标题（社团名）跟随站点配置变化 */
+  function syncTopbarSub() {
+    var el = document.querySelector('.app-topbar-sub');
+    if (!el) return;
+    var name = ERP.site && ERP.site.get ? ERP.site.get().club_name : ERP.config.clubName;
+    el.textContent = name || '';
+  }
+
+  document.addEventListener('erp:site-changed', syncTopbarSub);
+
+  /** 品牌区 / 顶栏文案：优先取站点配置，未加载 site.js 时回退 ERP.config */
+  function siteValue(field, fallback) {
+    if (ERP.site && ERP.site.get) {
+      var value = ERP.site.get()[field];
+      if (value) return value;
+    }
+    return fallback;
+  }
+
+  /** 品牌区：优先用 site.js 渲染（含 Logo / 双击编辑），未加载时为 config 默认值 */
+  function mountBrand(root) {
+    if (!ERP.site || !ERP.site.mountBrand) return;
+    ERP.site.mountBrand(root || document);
+  }
+
+  /** 退出登录：弹出选择框（前往封面编辑仅超级管理员可见） */
+  function openLogoutDialog() {
+    var session = ERP.auth.get();
+    var canEditCover = ERP.auth && ERP.auth.isSuper(session);
+    var mask = document.createElement('div');
+    mask.className = 'modal-mask';
+    mask.innerHTML =
+      '<div class="modal" role="dialog" aria-modal="true" aria-label="退出登录">' +
+        '<div class="modal-hd">退出登录</div>' +
+        '<div class="modal-bd">请选择要执行的操作</div>' +
+        '<div class="modal-ft">' +
+          '<button type="button" class="btn" data-act="cancel">取消</button>' +
+          (canEditCover
+            ? '<a class="btn btn-primary" data-act="cover" href="' +
+                esc(ERP.url('login.html') + '?cover=1') + '">' +
+                ERP.icon('image', 15) + '前往封面编辑</a>'
+            : '') +
+          '<button type="button" class="btn btn-danger" data-act="logout">' +
+            ERP.icon('logout', 15) + '退出登录' +
+          '</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(mask);
+
+    function close() {
+      document.removeEventListener('keydown', onKey);
+      if (mask.parentNode) mask.parentNode.removeChild(mask);
+    }
+    function onKey(event) {
+      if (event.key === 'Escape') close();
+    }
+    mask.addEventListener('click', function (event) {
+      if (event.target === mask) return close();
+      var btn = event.target.closest('[data-act]');
+      if (!btn) return;
+      var act = btn.getAttribute('data-act');
+      if (act === 'logout') {
+        ERP.auth.clear();
+        window.location.href = ERP.url('login.html');
+        return;
+      }
+      if (act === 'cancel') close();
+      // act === 'cover'：交给 <a> 默认跳转到登录页封面编辑模式（login.html?cover=1）
+    });
+    document.addEventListener('keydown', onKey);
+    var cancelBtn = mask.querySelector('[data-act="cancel"]');
+    if (cancelBtn) cancelBtn.focus();
+  }
+
   function findActiveItem(activeId) {
     var found = null;
     (ERP.config.nav || []).forEach(function (group) {
@@ -161,18 +237,18 @@
             '<a class="app-brand" href="' + esc(ERP.url('dashboard.html')) + '" title="返回工作台">' +
               '<span class="app-brand-logo" aria-hidden="true">' + ERP.icon('logo', 20) + '</span>' +
               '<span>' +
-                '<span class="app-brand-name">' + esc(ERP.config.appName) + '</span>' +
-                '<span class="app-brand-sub">' + esc(ERP.config.clubName) + '</span>' +
+                '<span class="app-brand-name">' + esc(siteValue('app_name', ERP.config.appName)) + '</span>' +
+                '<span class="app-brand-sub">' + esc(siteValue('club_name', ERP.config.clubName)) + '</span>' +
               '</span>' +
             '</a>' +
             '<nav class="app-nav" aria-label="主导航">' + navHtml(session, active) + '</nav>' +
-            '<div class="app-sidebar-foot">' + esc(ERP.config.version) + ' · 静态前端演示</div>' +
+            '<div class="app-sidebar-foot">' + esc(ERP.config.version) + ' · MariaDB 实时数据</div>' +
           '</aside>' +
           '<div class="app-main">' +
             '<header class="app-topbar">' +
               '<div class="app-topbar-left">' +
                 '<span class="app-topbar-title">' + esc(pageTitle) + '</span>' +
-                '<span class="app-topbar-sub">' + esc(ERP.config.clubName) + '</span>' +
+                '<span class="app-topbar-sub">' + esc(siteValue('club_name', ERP.config.clubName)) + '</span>' +
               '</div>' +
               '<div class="app-topbar-right">' +
                 topbarActions +
@@ -202,12 +278,20 @@
           '</div>' +
         '</div>';
 
+      // 品牌区：先用缓存 / 默认值渲染，再异步拉取最新站点配置（失败由 site.js 兜底）
+      mountBrand(root);
+      if (ERP.site && ERP.site.load) {
+        ERP.site.load().then(function () {
+          ERP.site.apply();
+          mountBrand(root);
+        }).catch(function () {
+          // site.js 内部已兜底，此处不再打断页面
+        });
+      }
+
       var logoutBtn = document.getElementById('erpLogoutBtn');
       if (logoutBtn) {
-        logoutBtn.addEventListener('click', function () {
-          ERP.auth.clear();
-          window.location.href = ERP.url('login.html');
-        });
+        logoutBtn.addEventListener('click', openLogoutDialog);
       }
 
       var globalSearch = document.getElementById('erpGlobalSearch');

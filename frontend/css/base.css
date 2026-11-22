@@ -123,21 +123,77 @@ img { max-width: 100%; }
   padding: 0 10px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  background: #fff;
+  background-color: #fff;
   color: var(--text);
   font-size: 13.5px;
   font-family: inherit;
   outline: none;
   transition: border-color .12s, box-shadow .12s;
 }
-.select { padding-right: 26px; cursor: pointer; }
 .textarea { height: auto; min-height: 76px; padding: 8px 10px; line-height: 1.5; resize: vertical; }
+/* ---------- 下拉框：全局统一样式（v1.4.0） ----------
+   之前各页原生箭头 + 额外 padding 覆盖，导致箭头 / 文字 / 外框比例不一致，这里统一：
+   - appearance:none 去掉浏览器原生箭头（各平台尺寸与位置不可控）
+   - 自定义 SVG 箭头（data URI，12×12，色值 #5b6b7f）固定在 right 10px center
+   - 右侧 padding 28px = 10px 边距 + 12px 箭头 + 6px 文字间隙，文字不会被箭头压住
+   - height / line-height 与 .input 对齐（36px / 34px），箭头与文字同一水平中线
+   - text-align-last 修正 Chrome / Edge 把选中文字居中的问题
+   - 注意：主题段覆盖底色时必须用 background-color，用 background 简写会清掉箭头背景图
+*/
+.select,
+select.select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  height: 36px;
+  padding: 0 28px 0 11px;
+  line-height: 34px;
+  text-align: left;
+  text-align-last: left;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b6b7f' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px;
+}
+/* 页面若用 background 简写覆盖底色（筛选栏 / 表单校验态），用更高优先级保住箭头背景图 */
+.filter-bar select.select,
+.field.is-invalid select.select {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b6b7f' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px;
+}
+/* 筛选栏（物料总览 / 操作日志）：下拉与搜索框统一 36px 高，内边距与输入框一致 */
+.filter-bar .select,
+.filter-bar select.select {
+  width: auto;
+  min-width: 118px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 28px 0 11px;
+  font-size: 13.5px;
+  line-height: 34px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b6b7f' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px;
+}
+/* 表单 / 工具条内的下拉：右侧只保留箭头位（覆盖页面历史上的 38px，避免右侧留白过大） */
+.field .select,
+.toolbar .select { padding-right: 28px; }
+/* 禁用态：箭头同步降低对比度，文字仍可读 */
+.select:disabled,
+select.select:disabled {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23b8ae9d' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  cursor: not-allowed;
+}
 .input:focus, .select:focus, .textarea:focus {
   border-color: var(--brand);
   box-shadow: 0 0 0 2px rgba(44, 110, 143, .12);
 }
 .input::placeholder, .textarea::placeholder { color: var(--text-3); }
-.input:disabled, .select:disabled, .textarea:disabled { background: var(--surface-3); color: var(--text-2); cursor: not-allowed; }
+.input:disabled, .select:disabled, .textarea:disabled { background-color: var(--surface-3); color: var(--text-2); cursor: not-allowed; }
 .input-mono { font-family: var(--mono); font-size: 13px; }
 .field-hint { font-size: 12px; color: var(--text-3); }
 .field-row { display: flex; gap: 8px; align-items: center; }
@@ -212,6 +268,38 @@ img { max-width: 100%; }
 .table tbody tr:hover { background: #fafcfe; }
 .table .col-actions { text-align: right; white-space: nowrap; }
 .table .col-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---------- 物料总览（v1.4.0）：分类路径 / 领用次数 ---------- */
+/* 完整分类路径：一级 / 二级 / 三级，最后一级加深突出 */
+.cell-path {
+  max-width: 220px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-2);
+  overflow-wrap: break-word;
+}
+.cell-path .path-node { color: var(--text-2); }
+.cell-path .path-node.is-leaf { color: var(--text); font-weight: 600; }
+/* 领用次数小标签：视觉克制，方便直接核对「领用最多 / 最少」排序 */
+.mat-borrow {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background-color: var(--surface-3);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 17px;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+.mat-borrow.is-zero {
+  background-color: transparent;
+  border: 1px dashed var(--border-strong);
+  color: var(--text-3);
+  font-weight: 500;
+}
 
 /* ---------- 空状态 / 提示 ---------- */
 .empty { padding: 52px 24px; text-align: center; color: var(--text-2); }
@@ -328,8 +416,16 @@ img { max-width: 100%; }
   color: #fff;
 }
 .app-brand-logo svg { width: 20px; height: 20px; }
+/* v1.3.0：Logo 支持上传图片（圆角与默认图标一致 7px，由内联样式保证尺寸） */
+.app-brand-logo-img { width: 30px; height: 30px; border-radius: 7px; object-fit: cover; display: block; }
+.app-brand-text { display: block; min-width: 0; }
 .app-brand-name { display: block; font-size: 14.5px; font-weight: 700; line-height: 1.2; letter-spacing: .3px; }
 .app-brand-sub { display: block; font-size: 11px; color: var(--text-3); line-height: 1.3; }
+/* 超级管理员：品牌区名称双击编辑态 */
+.app-brand-name[contenteditable="true"],
+.app-brand-sub[contenteditable="true"] { white-space: nowrap; }
+.app-brand-name[data-editing="1"],
+.app-brand-sub[data-editing="1"] { outline: 1px dashed var(--brand); outline-offset: 3px; border-radius: 4px; background: var(--surface-2); padding: 0 4px; margin: 0 -4px; }
 .app-nav { flex: 1; overflow-y: auto; padding: 14px 10px 20px; }
 .nav-group { margin-top: 14px; }
 .nav-group-title {
@@ -559,15 +655,16 @@ img { max-width: 100%; }
 .btn-ghost:hover { background: var(--block-mint); }
 .btn:focus-visible { outline: 2px solid rgba(43, 125, 108, .45); }
 
-/* ---------- 表单：暖白底 + 清晰聚焦色 ---------- */
-.input, .select, .textarea { background: #fffdf7; border-color: var(--border-strong); }
+/* ---------- 表单：暖白底 + 清晰聚焦色 ----------
+   必须用 background-color：用 background 简写会把 .select 的箭头背景图清掉 */
+.input, .select, .textarea { background-color: #fffdf7; border-color: var(--border-strong); }
 .input:focus, .select:focus, .textarea:focus {
   border-color: var(--brand);
   box-shadow: none;
   outline: 2px solid rgba(43, 125, 108, .22);
   outline-offset: 0;
 }
-.input:disabled, .select:disabled, .textarea:disabled { background: var(--surface-3); }
+.input:disabled, .select:disabled, .textarea:disabled { background-color: var(--surface-3); }
 .checkbox input { accent-color: var(--brand); }
 
 /* 表单辅助文字：提升可读性 */

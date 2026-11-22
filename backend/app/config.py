@@ -26,7 +26,7 @@ def _env_list(name: str, default: str = "") -> List[str]:
 @dataclass(frozen=True)
 class Settings:
     app_name: str = "Linda_ERP"
-    app_version: str = "1.0.0"
+    app_version: str = _env("APP_VERSION", "1.4.0")
     app_env: str = _env("APP_ENV", "production")
     app_host: str = _env("APP_HOST", "127.0.0.1")
     app_port: int = _env_int("APP_PORT", 8000)

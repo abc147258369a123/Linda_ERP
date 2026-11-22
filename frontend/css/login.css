@@ -238,3 +238,100 @@
 @media (max-width: 900px) {
   .role-picker { grid-template-columns: 1fr; }
 }
+
+/* =========================================================================
+   v1.4.0 封面编辑模式（login.html?cover=1，仅超级管理员）
+   说明：仅编辑态生效，普通访客无任何视觉痕迹
+   ========================================================================= */
+
+/* Logo 图片：尺寸与内置 SVG 容器一致（56×56），圆角沿用 .brand-logo 的 13px */
+.brand-logo.has-image { background: transparent; border: 0; padding: 0; }
+.brand-logo-img {
+  width: 56px;
+  height: 56px;
+  border-radius: 13px;
+  object-fit: cover;
+  display: block;
+}
+
+/* 顶部固定提示条 */
+.cover-edit-tip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 12.5px;
+  letter-spacing: .3px;
+  box-shadow: 0 2px 8px rgba(38, 49, 59, .18);
+}
+.cover-edit-tip svg { flex: none; }
+.cover-edit-tip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 给顶部提示条让出高度（保持在 100vh 内，不产生滚动条） */
+.is-cover-edit .login-page { padding-top: 36px; }
+
+/* 可编辑文本：hover 虚线框；双击后实线框 + 白底，可直接输入 */
+.is-cover-edit [data-edit] {
+  cursor: text;
+  border-radius: 4px;
+  outline: 1px dashed transparent;
+  outline-offset: 3px;
+  transition: background-color .12s, outline-color .12s;
+}
+.is-cover-edit [data-edit]:hover {
+  outline-color: var(--brand);
+  background: rgba(255, 255, 255, .5);
+}
+.is-cover-edit [data-edit][data-editing="1"] {
+  outline: 1px solid var(--brand);
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* 编辑态：Logo 可点击上传，会话块只保留可编辑的提示文字 */
+.is-cover-edit .brand-logo { cursor: pointer; }
+.is-cover-edit .login-session > .flex { display: none; }
+
+/* 右下角：保存状态 + 返回主页面（仅编辑模式） */
+.cover-edit-actions {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cover-edit-status {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .92);
+  color: var(--text-2);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.cover-edit-back { background: #fff; box-shadow: var(--shadow-sm); }
+
+/* 按钮文字编辑用的临时输入框：沿用 .btn 尺寸，只补输入框差异 */
+.cover-edit-swap {
+  padding: 0 14px;
+  text-align: center;
+  font-family: inherit;
+  user-select: text;
+}
+
+@media (max-width: 900px) {
+  .cover-edit-tip { font-size: 11.5px; padding: 7px 12px; }
+  .cover-edit-actions { right: 12px; bottom: 12px; }
+  .cover-edit-status { display: none; }
+}
+

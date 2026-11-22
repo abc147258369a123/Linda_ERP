@@ -2,12 +2,16 @@
 
 后端已实现，数据库使用 **MariaDB 10.11**，不使用 SQL Server / Oracle / Elasticsearch。
 
+> v1.3.0 起生产库为 **`linda_erp_v2`**（树形分类 + 站点配置）；原库 `linda_erp` 保留原样用于回滚，
+> 迁移脚本见 `migrations/20261123_v130_new_db.sql`，说明见 `docs/v1.3.0-迭代说明与数据库迁移.md`。
+
 ## 目录
 
 | 文件 | 说明 |
 | --- | --- |
-| `init/01_schema.sql` | 建表 SQL（用户、分类、物料、入库单、出库单、物料流水、访问记录） |
-| `init/02_seed.sql` | 初始基础数据（9 个物料分类） |
+| `init/01_schema.sql` | 建表 SQL（v1.3.0：用户、树形分类、物料、入库单、出库单、流水、访问记录、站点配置） |
+| `init/02_seed.sql` | 初始基础数据（9 个一级物料分类 + 站点配置默认值） |
+| `migrations/` | 版本迁移脚本（新库创建 + 数据迁移 / 结构变更） |
 | `backups/` | 本地备份目录（已 gitignore） |
 
 ## 自动初始化

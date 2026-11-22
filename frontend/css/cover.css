@@ -1,0 +1,178 @@
+/* =========================================================================
+   封面编辑页（pages/cover.html）
+   - 整屏封面：左上品牌区 / 中间标题与标语 / 底部页脚
+   - 双击就地编辑：hover 显示虚线框 + 「双击编辑」小提示；编辑中显示品牌色虚线 + 浅底
+   - 配色全部沿用 base.css 的 CSS 变量，不引入第三方库
+   ========================================================================= */
+
+/* ---------- 页面骨架：整屏封面 + 低饱和色块背景 ---------- */
+.cover-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 26px 40px 30px;
+  background:
+    radial-gradient(circle at 8% 4%, var(--block-mint) 0, transparent 40%),
+    radial-gradient(circle at 94% 96%, var(--block-lemon) 0, transparent 46%),
+    var(--bg);
+}
+
+/* ---------- 左上角品牌区（复用侧边栏 .app-brand 结构） ---------- */
+.cover-brand { position: relative; z-index: 2; }
+
+.cover-brand .app-brand {
+  display: inline-flex;
+  height: auto;
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
+  gap: 11px;
+}
+.cover-brand .app-brand-text { display: block; }
+.cover-brand .app-brand-name { font-size: 16px; letter-spacing: .3px; }
+.cover-brand .app-brand-sub { font-size: 12px; }
+
+/* 品牌区名称：双击可编辑的 hover 提示（不编辑时与普通文字一致） */
+.cover-brand [data-brand-field] {
+  border-radius: 4px;
+  outline: 1px dashed transparent;
+  outline-offset: 2px;
+  transition: outline-color .12s, background-color .12s;
+}
+.cover-brand [data-brand-field]:hover {
+  outline-color: var(--border-strong);
+  background: rgba(43, 125, 108, .05);
+}
+
+/* ---------- 封面主体：标题 + 分隔条 + 标语 ---------- */
+.cover-center {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 0 40px;
+  text-align: center;
+}
+.cover-title {
+  margin: 0;
+  max-width: 18em;
+  font-size: clamp(34px, 6vw, 64px);
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: 3px;
+  color: var(--brand-strong);
+  overflow-wrap: break-word;
+}
+.cover-rule {
+  width: 64px;
+  height: 3px;
+  margin-top: 26px;
+  border-radius: 2px;
+  background: var(--brand);
+  opacity: .85;
+}
+.cover-slogan {
+  margin: 22px 0 0;
+  max-width: 32em;
+  font-size: clamp(14px, 1.6vw, 19px);
+  line-height: 1.7;
+  letter-spacing: 1px;
+  color: var(--text-2);
+}
+
+/* ---------- 页脚 ---------- */
+.cover-footer {
+  position: relative;
+  z-index: 1;
+  padding: 8px 0 4px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 12.5px;
+  letter-spacing: 1.5px;
+}
+
+/* ---------- 双击编辑：hover 虚线框 + 提示气泡（不编辑时不可见） ---------- */
+.cover-page [data-edit] {
+  position: relative;
+  display: inline-block;
+  border-radius: 8px;
+  outline: 1px dashed transparent;
+  outline-offset: 6px;
+  transition: outline-color .12s, background-color .12s;
+}
+.cover-page [data-edit]:hover {
+  outline-color: var(--border-strong);
+  background: rgba(43, 125, 108, .05);
+  cursor: text;
+}
+.cover-page [data-edit][contenteditable="true"] { caret-color: var(--brand); }
+
+.cover-page [data-edit]::after {
+  content: "双击编辑";
+  position: absolute;
+  left: 50%;
+  top: -26px;
+  transform: translateX(-50%);
+  padding: 1px 9px;
+  border-radius: 10px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: .5px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s;
+}
+.cover-page [data-edit]:hover::after { opacity: 1; }
+.cover-page [data-edit][data-editing="1"]::after { content: "Enter 保存 · Esc 取消"; }
+
+/* ---------- 右上角操作提示 / 右下角固定按钮与保存状态 ---------- */
+.cover-tip {
+  position: fixed;
+  top: 20px;
+  right: 22px;
+  z-index: 20;
+  padding: 5px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: 12px;
+  letter-spacing: .3px;
+}
+.cover-actions {
+  position: fixed;
+  right: 22px;
+  bottom: 20px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cover-status {
+  font-size: 12px;
+  letter-spacing: .3px;
+  color: var(--text-3);
+}
+.cover-back { flex: none; }
+
+/* ---------- 响应式：窄屏缩小字号，隐藏次要提示 ---------- */
+@media (max-width: 720px) {
+  .cover-page { padding: 18px 18px 22px; }
+  .cover-brand .app-brand-name { font-size: 15px; }
+  .cover-title { font-size: 30px; letter-spacing: 1.5px; }
+  .cover-rule { width: 48px; margin-top: 18px; }
+  .cover-slogan { margin-top: 16px; font-size: 14px; }
+  .cover-footer { font-size: 11.5px; letter-spacing: 1px; }
+  .cover-tip { display: none; }
+  .cover-status { display: none; }
+  .cover-actions { right: 12px; bottom: 12px; gap: 8px; }
+}

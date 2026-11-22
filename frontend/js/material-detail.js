@@ -3,7 +3,7 @@
  * - 展示档案完整信息：图片、型号、规格、分类、库存、存放位置、来源项目、入库时间
  * - 库存预警信息（精确计数模式按阈值判断）
  * - 该物料的完整历史领用记录（日志永久保留）
- * 角色：所有登录用户可查看；编辑入口仅管理员可见。
+ * 角色：所有登录用户可查看；编辑入口仅管理员可见；删除物料仅超级管理员可用。
  */
 (async function () {
   'use strict';
@@ -13,6 +13,7 @@
   var session = ERP.auth.requireLogin();
   if (!session) return;
   var isAdmin = ERP.auth.isAdmin(session);
+  var isSuper = ERP.auth.isSuper(session);
 
   await ERP.store.load();
 
@@ -76,6 +77,11 @@
   if (isAdmin) {
     actions += '<a class="btn" href="' + esc(editHref(material.id)) + '">' +
       ERP.icon('edit', 15) + '编辑物料</a>';
+  }
+  // 删除属于不可恢复操作，仅在渲染层对超级管理员输出入口
+  if (isSuper) {
+    actions += '<button class="btn btn-danger" type="button" id="deleteMaterialBtn">' +
+      ERP.icon('trash', 15) + '删除物料</button>';
   }
 
   /* ---------------- 关键指标 ---------------- */
@@ -359,6 +365,84 @@
       });
     });
   })();
+
+  /* ---------------- 删除物料（仅超级管理员） ---------------- */
+
+  /**
+   * 删除确认弹窗正文：物料名称 / 档案编号 / 型号 + 连带删除范围说明。
+   * 流水条数用本页已拉取的 logs 计算；超过单页上限（200 条）时不写具体数字，避免误导。
+   */
+  function deleteConfirmHtml() {
+    var logHint = '';
+    if (logs.length > 0 && logs.length < 200) {
+      logHint = '该物料当前有 ' + logs.length + ' 条领用 / 入库流水，将一并删除。';
+    } else if (logs.length >= 200) {
+      logHint = '该物料存在大量领用 / 入库流水，将一并删除。';
+    }
+    return '<dl class="detail-list">' +
+        '<div class="detail-item is-full">' +
+          '<dt>物料名称</dt><dd>' + esc(material.name || '—') + '</dd>' +
+        '</div>' +
+        '<div class="detail-item">' +
+          '<dt>档案编号</dt><dd class="mono">' + esc(material.id || '—') + '</dd>' +
+        '</div>' +
+        '<div class="detail-item">' +
+          '<dt>型号</dt><dd class="mono">' + esc(material.model || '—') + '</dd>' +
+        '</div>' +
+      '</dl>' +
+      '<p style="margin:14px 0 0; color:var(--danger); font-weight:600; line-height:1.6">' +
+        '删除后不可恢复；该物料的领用 / 入库流水与出入库单明细会一并删除。' +
+      '</p>' +
+      (logHint ? '<p class="small muted" style="margin:6px 0 0">' + esc(logHint) + '</p>' : '') +
+      '<p class="small muted" style="margin:6px 0 0">' +
+        '删除会同时清理因此变空的出入库单，请确认该物料确实需要下架。' +
+      '</p>';
+  }
+
+  // deleting 标记用于防重复点击：确认后面板按钮立即禁用，成功跳转前不再响应点击
+  var deleting = false;
+
+  async function deleteMaterial() {
+    var button = document.getElementById('deleteMaterialBtn');
+    if (!button || deleting) return;
+    var originalHtml = button.innerHTML;
+
+    var confirmed = await ERP.ui.confirm({
+      title: '删除物料',
+      html: deleteConfirmHtml(),
+      okText: '确认删除',
+      danger: true
+    });
+    if (!confirmed) return;
+
+    deleting = true;
+    button.disabled = true;
+    button.innerHTML = ERP.icon('trash', 15) + '删除中…';
+
+    try {
+      await ERP.api.del('/materials/' + material.dbId);
+      // 缓存刷新失败不影响已经完成的删除，随后整页跳转会重新拉取数据
+      try {
+        await ERP.store.refresh();
+      } catch (refreshError) { /* 忽略刷新失败 */ }
+      ERP.ui.toast('物料已删除', 'ok');
+      window.setTimeout(function () {
+        window.location.href = ERP.url('index.html');
+      }, 320);
+    } catch (error) {
+      ERP.ui.toast(error.message || '删除失败，请稍后重试', 'error');
+      deleting = false;
+      button.disabled = false;
+      button.innerHTML = originalHtml;
+    }
+  }
+
+  var deleteButton = document.getElementById('deleteMaterialBtn');
+  if (deleteButton) {
+    deleteButton.addEventListener('click', function () {
+      deleteMaterial();
+    });
+  }
 
   if (ERP.ui.getParam('denied') === '1') {
     ERP.ui.toast('当前角色无权执行该操作', 'warn');

@@ -1,0 +1,205 @@
+/* =========================================================================
+   分类管理 · 树形多级分类样式（v1.3.0）
+   依赖 base.css 的 :root 变量与 .table / .tag / .btn 等基础组件
+   无外部依赖、无动画特效，与现有表格视觉保持一致
+   ========================================================================= */
+
+/* ---------- 表格列宽 ---------- */
+.cat-tree-table { min-width: 720px; }
+.cat-tree-table .cat-col-name { width: 42%; }
+.cat-tree-table .col-num { white-space: nowrap; }
+.cat-tree-table .col-actions { width: 92px; }
+
+/* ---------- 树形缩进与展开箭头 ---------- */
+.cat-name-col { min-width: 0; }
+.cat-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 24px;
+}
+.cat-name-cell[data-level="2"] { padding-left: 12px; }
+.cat-name-cell[data-level="3"] { padding-left: 24px; }
+.cat-name-cell[data-level="4"] { padding-left: 36px; }
+.cat-name-cell[data-level="5"] { padding-left: 48px; }
+
+.cat-tree-table .cat-toggle {
+  width: 22px;
+  height: 22px;
+  border-color: transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-2);
+}
+.cat-tree-table .cat-toggle:hover {
+  border-color: var(--border);
+  background: var(--brand-weak);
+  color: var(--brand-strong);
+}
+.cat-tree-table .cat-toggle svg { transition: transform .15s; }
+.cat-tree-table .cat-toggle.is-open svg { transform: rotate(90deg); }
+
+/* 叶子节点占位，保证同级名称左对齐 */
+.cat-toggle-spacer {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+/* ---------- 分类名称 / 子分类徽标 ---------- */
+.cat-name-link {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+.cat-name-link:hover,
+.cat-row:hover .cat-name-link {
+  color: var(--brand);
+  text-decoration: underline;
+}
+.cat-row.is-child .cat-name-link { font-weight: 500; }
+
+.cat-child-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--brand-weak);
+  color: var(--brand-strong);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* ---------- 数字列 ---------- */
+.cat-total {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.cat-total.is-zero { color: var(--text-3); font-weight: 500; }
+.cat-count {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text-2);
+}
+.cat-unit { margin-left: 2px; font-size: 11px; color: var(--text-3); }
+
+/* 右键菜单打开时高亮当前行 */
+.cat-tree-table tbody tr.is-context { background: var(--brand-weak); }
+.cat-tree-table tbody tr.is-context .cat-name-link { color: var(--brand-strong); }
+
+/* ---------- 右键菜单 ---------- */
+.cat-context-menu {
+  position: fixed;
+  z-index: 850;
+  min-width: 172px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, .18);
+  font-size: 13px;
+  user-select: none;
+}
+.cat-context-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 8px 7px;
+  margin-bottom: 4px;
+  border-bottom: 1px dashed var(--border);
+}
+.cat-context-head-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--text);
+}
+.cat-context-head-sub { flex: none; font-size: 11px; color: var(--text-3); }
+.cat-context-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.cat-context-item svg { flex: none; color: var(--text-3); }
+.cat-context-item:hover { background: var(--brand-weak); color: var(--brand-strong); }
+.cat-context-item:hover svg { color: var(--brand-strong); }
+.cat-context-item.is-danger { color: var(--danger); }
+.cat-context-item.is-danger svg { color: var(--danger); }
+.cat-context-item.is-danger:hover { background: var(--danger-bg); color: var(--danger); }
+.cat-context-item.is-danger:hover svg { color: var(--danger); }
+
+/* ---------- 其它 ---------- */
+.cat-permission-tip { margin-bottom: 14px; }
+.cat-permission-tip svg { flex: none; margin-top: 2px; color: var(--text-3); }
+.cat-tree-card .card-sub { max-width: 560px; }
+
+@media (max-width: 640px) {
+  .cat-tree-card .card-hd { align-items: flex-start; flex-direction: column; }
+  .cat-tree-card .legend { display: none; }
+}
+
+/* =========================================================================
+   v1.4.0 树形层级字号区分（一级最大 / 二级中等 / 三级最小）
+   目标：多级分类一眼分清分支，不改变配色与组件风格
+   ========================================================================= */
+.cat-tree-table .cat-row[data-level="1"] .cat-name-cell { padding-top: 9px; padding-bottom: 9px; }
+.cat-tree-table .cat-row[data-level="2"] .cat-name-cell { padding-top: 6px; padding-bottom: 6px; }
+.cat-tree-table .cat-row[data-level="3"] .cat-name-cell { padding-top: 4px; padding-bottom: 4px; }
+
+/* 一级主分类：字号最大、加粗 */
+.cat-tree-table .cat-row[data-level="1"] .cat-name-link {
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: .2px;
+  color: var(--text);
+}
+/* 二级子分类：中等字号 */
+.cat-tree-table .cat-row[data-level="2"] .cat-name-link {
+  font-size: 13.8px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+/* 三级及更深子分类：最小字号 */
+.cat-tree-table .cat-row[data-level="3"] .cat-name-link,
+.cat-tree-table .cat-row[data-level="4"] .cat-name-link,
+.cat-tree-table .cat-row[data-level="5"] .cat-name-link {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* 数量列字号随层级递减，保持行内视觉重量一致 */
+.cat-tree-table .cat-row[data-level="1"] .cat-total { font-size: 15px; font-weight: 700; }
+.cat-tree-table .cat-row[data-level="2"] .cat-total { font-size: 13.5px; }
+.cat-tree-table .cat-row[data-level="3"] .cat-total { font-size: 12.5px; }
+
+/* 一级分类行左侧强调条，强化层级起点 */
+.cat-tree-table .cat-row[data-level="1"] > td:first-child {
+  box-shadow: inset 2px 0 0 var(--brand-weak);
+}

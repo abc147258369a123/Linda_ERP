@@ -25,10 +25,27 @@ def user_dict(user: User) -> Dict[str, Any]:
 
 
 def category_dict(category: Category) -> Dict[str, Any]:
-    return {"id": category.id, "name": category.name, "created_at": _dt(category.created_at)}
+    return {
+        "id": category.id,
+        "name": category.name,
+        "parent_id": category.parent_id,
+        "created_at": _dt(category.created_at),
+    }
 
 
-def material_dict(material: Material, category_name: str = "") -> Dict[str, Any]:
+def site_settings_dict(row: Any) -> Dict[str, Any]:
+    return {
+        "app_name": row.app_name,
+        "club_name": row.club_name,
+        "logo_image": row.logo_image or "",
+        "cover_title": row.cover_title,
+        "cover_slogan": row.cover_slogan,
+        "cover_footer": row.cover_footer,
+        "updated_at": _dt(row.updated_at),
+    }
+
+
+def material_dict(material: Material, category_name: str = "", borrow_count: int | None = None) -> Dict[str, Any]:
     qty = material.qty
     min_qty = material.min_qty
     is_warn = bool(
@@ -59,6 +76,7 @@ def material_dict(material: Material, category_name: str = "") -> Dict[str, Any]
         "image": material.image,
         "note": material.note,
         "is_warn": is_warn,
+        "borrow_count": int(borrow_count or 0),
         "created_at": _dt(material.created_at),
         "updated_at": _dt(material.updated_at),
     }

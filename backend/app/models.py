@@ -33,11 +33,42 @@ class User(Base):
 
 
 class Category(Base):
+    """物料分类（v1.3.0 起支持树形多级：parent_id 为空表示一级分类）。"""
+
     __tablename__ = "categories"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    name = Column(String(30), unique=True, nullable=False)
+    name = Column(String(30), nullable=False, index=True)
+    parent_id = Column(BigInteger, ForeignKey("categories.id"), nullable=True, index=True)
     created_at = Column(DateTime, nullable=False, default=now_local)
+
+
+class SiteSetting(Base):
+    """站点自定义配置（标题 / 社团名 / Logo / 封面文案），仅超级管理员可修改。"""
+
+    __tablename__ = "site_settings"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    app_name = Column(String(60), nullable=False, default="硬件物料台账")
+    club_name = Column(String(60), nullable=False, default="校内硬件社团")
+    logo_image = Column(String(255), nullable=False, default="")
+    cover_title = Column(String(80), nullable=False, default="硬件物料台账")
+    cover_slogan = Column(String(120), nullable=False, default="轻量化 ERP · 回收元器件统一台账")
+    cover_footer = Column(String(255), nullable=False, default="Linda_ERP · 校内硬件社团")
+    updated_at = Column(DateTime, nullable=False, default=now_local, onupdate=now_local)
+
+
+class UiSetting(Base):
+    """页面可编辑文案（v1.4.0）：按 (page, field_key) 存储，登录封面等页面文案持久化。"""
+
+    __tablename__ = "ui_settings"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    page = Column(String(30), nullable=False, index=True)
+    field_key = Column(String(60), nullable=False)
+    label = Column(String(60), nullable=False, default="")
+    value = Column(String(500), nullable=False, default="")
+    updated_at = Column(DateTime, nullable=False, default=now_local, onupdate=now_local)
 
 
 class Material(Base):

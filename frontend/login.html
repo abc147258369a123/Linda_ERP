@@ -9,8 +9,8 @@
   <meta name="theme-color" content="#1d4254">
   <title>登录 · 硬件物料台账</title>
   <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
-  <link rel="stylesheet" href="css/base.css?v=20261121g">
-  <link rel="stylesheet" href="css/login.css?v=20261121g">
+  <link rel="stylesheet" href="css/base.css?v=1.4.0">
+  <link rel="stylesheet" href="css/login.css?v=1.4.0">
   <script>
   (function () {
     function showBootError(message) {
@@ -35,6 +35,7 @@
   </script>
 </head>
 <body class="login-body">
+  <!-- v1.4.0：所有可编辑文案用 data-edit="字段key" 标记，值来自 GET /api/ui-settings/login -->
   <main class="login-page">
     <!-- 左侧品牌区 -->
     <section class="login-brand">
@@ -47,70 +48,74 @@
           </svg>
         </div>
         <div>
-          <h1>硬件物料台账</h1>
-          <p class="brand-sub">校内硬件社团 · 轻量化 ERP</p>
+          <h1 data-edit="login_title">硬件物料台账</h1>
+          <p class="brand-sub" data-edit="login_subtitle">校内硬件社团 · 轻量化 ERP</p>
         </div>
         <ul class="brand-points">
           <li>
             <span class="idx">01</span>
             <div>
-              <strong>双模式库存</strong>
-              <span class="desc">海量小件记状态，稀缺器件记数量</span>
+              <strong data-edit="login_point1_title">双模式库存</strong>
+              <span class="desc" data-edit="login_point1_desc">海量小件记状态，稀缺器件记数量</span>
             </div>
           </li>
           <li>
             <span class="idx">02</span>
             <div>
-              <strong>领用全留痕</strong>
-              <span class="desc">每次领用自动生成日志，永久可查</span>
+              <strong data-edit="login_point2_title">领用全留痕</strong>
+              <span class="desc" data-edit="login_point2_desc">每次领用自动生成日志，永久可查</span>
             </div>
           </li>
           <li>
             <span class="idx">03</span>
             <div>
-              <strong>轻量可离线</strong>
-              <span class="desc">纯静态页面，树莓派本地部署</span>
+              <strong data-edit="login_point3_title">轻量可离线</strong>
+              <span class="desc" data-edit="login_point3_desc">纯静态页面，树莓派本地部署</span>
             </div>
           </li>
         </ul>
       </div>
-      <div class="brand-foot">HARDWARE INVENTORY · <span id="loginVersion">v1.2.6</span></div>
+      <!-- 页脚：只有文字可编辑，版本号始终由 config.js 渲染 -->
+      <div class="brand-foot"><span data-edit="login_footer">HARDWARE INVENTORY</span> · <span id="loginVersion">v1.2.6</span></div>
     </section>
 
     <!-- 右侧登录面板 -->
     <section class="login-panel">
       <form class="login-card" id="loginForm" autocomplete="off" novalidate>
-        <h2>账号登录</h2>
-        <p class="login-desc">使用社团账号登录，角色与权限由后端统一校验</p>
+        <h2 data-edit="login_card_title">账号登录</h2>
+        <p class="login-desc" data-edit="login_card_desc">使用社团账号登录，角色与权限由后端统一校验</p>
 
         <div class="login-fields">
           <div class="field">
-            <label class="label" for="loginAccount">账号</label>
+            <label class="label" for="loginAccount" data-edit="login_label_account">账号</label>
             <input class="input" id="loginAccount" name="account" type="text"
-                   placeholder="请输入社团账号" autocomplete="username" required>
+                   placeholder="请输入社团账号" autocomplete="username" required
+                   data-edit="login_placeholder_account" data-edit-type="placeholder">
           </div>
           <div class="field">
-            <label class="label" for="loginPassword">密码</label>
+            <label class="label" for="loginPassword" data-edit="login_label_password">密码</label>
             <input class="input" id="loginPassword" name="password" type="password"
-                   placeholder="请输入密码" autocomplete="current-password" required>
+                   placeholder="请输入密码" autocomplete="current-password" required
+                   data-edit="login_placeholder_password" data-edit-type="placeholder">
           </div>
         </div>
 
         <div class="login-error" id="loginError" role="alert" hidden></div>
 
         <div class="login-actions">
-          <button class="btn btn-primary btn-block" id="loginBtn" type="submit">登 录</button>
+          <button class="btn btn-primary btn-block" id="loginBtn" type="submit"
+                  data-edit="login_btn_text" data-edit-type="button">登 录</button>
         </div>
 
         <div class="login-session" id="loginSession" hidden>
-          <span id="loginSessionText"></span>
+          <span id="loginSessionText" data-edit="login_session_text">当前已登录，可直接进入系统</span>
           <span class="flex">
             <a href="dashboard.html" id="loginContinue">进入系统</a>
             <button type="button" class="btn-link" id="loginSignOut">退出</button>
           </span>
         </div>
 
-        <p class="login-note">
+        <p class="login-note" data-edit="login_note">
           账号由超级管理员在「用户管理」中创建；登录成功后使用 JWT 令牌访问后端接口，
           页面数据全部来自 MariaDB，不再使用浏览器模拟数据。
         </p>
@@ -118,13 +123,13 @@
     </section>
   </main>
 
-  <script src="js/config.js?v=20261121g"></script>
-  <script src="js/icons.js?v=20261121g"></script>
-  <script src="js/auth.js?v=20261121g"></script>
-  <script src="js/api.js?v=20261121g"></script>
-  <script src="js/store.js?v=20261121g"></script>
-  <script src="js/ui.js?v=20261121g"></script>
-  <script src="js/login.js?v=20261121g"></script>
-  <script src="js/dev-reload.js?v=20261121g"></script>
+  <script src="js/config.js?v=1.4.0"></script>
+  <script src="js/icons.js?v=1.4.0"></script>
+  <script src="js/auth.js?v=1.4.0"></script>
+  <script src="js/api.js?v=1.4.0"></script>
+  <script src="js/store.js?v=1.4.0"></script>
+  <script src="js/ui.js?v=1.4.0"></script>
+  <script src="js/login.js?v=1.4.0"></script>
+  <script src="js/dev-reload.js?v=1.4.0"></script>
 </body>
 </html>

@@ -1,18 +1,21 @@
 -- =====================================================================
--- Linda_ERP 数据库结构（MariaDB 10.11 / InnoDB / utf8mb4）
--- 由 docker-entrypoint-initdb.d 在数据库首次初始化时自动执行
+-- Linda_ERP 数据库结构 v1.3.0（MariaDB 10.11 / InnoDB / utf8mb4）
+-- ---------------------------------------------------------------------
+-- v1.3.0 变更：
+--   1. categories 增加 parent_id（树形多级分类，NULL 为一级分类）
+--   2. 新增 site_settings（站点标题 / 社团名 / Logo / 封面文案）
+-- 说明：库名使用迁移后的 linda_erp_v2；已有环境请执行
+--       db/migrations/20261123_v130_new_db.sql 完成数据迁移（原库保留不动）
 -- =====================================================================
 
 SET NAMES utf8mb4;
 SET time_zone = '+08:00';
-
--- 默认数据库名固定为 linda_erp；如需修改 DB_NAME，请同步修改此处
-CREATE DATABASE IF NOT EXISTS linda_erp
+CREATE DATABASE IF NOT EXISTS linda_erp_v2
   DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE linda_erp;
+USE linda_erp_v2;
 
 -- ---------------------------------------------------------------------
--- 用户与角色：super（超级管理员） > admin（管理员） > member（普通成员）
+-- 表结构（与 v1.2.6 一致 + 树形分类 + 站点配置）
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
   id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -30,22 +33,17 @@ CREATE TABLE IF NOT EXISTS users (
   CONSTRAINT chk_users_role CHECK (role IN ('super', 'admin', 'member'))
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户账号';
 
--- ---------------------------------------------------------------------
--- 物料分类
--- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS categories (
   id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   name       VARCHAR(30) NOT NULL,
+  parent_id  BIGINT UNSIGNED NULL COMMENT '父分类 id；NULL 表示一级分类',
   created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uk_categories_name (name)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '物料分类';
+  KEY idx_categories_parent (parent_id),
+  KEY idx_categories_name (name),
+  CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id) REFERENCES categories (id) ON DELETE RESTRICT
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '物料分类（树形多级）';
 
--- ---------------------------------------------------------------------
--- 物料档案
--- mode=simple  : 只记有货/空，qty/min_qty 为空
--- mode=precise : 记录 qty，min_qty 为最低库存预警阈值
--- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS materials (
   id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   code        VARCHAR(20)   NOT NULL COMMENT '档案编号，如 M-0001',
@@ -78,9 +76,6 @@ CREATE TABLE IF NOT EXISTS materials (
   CONSTRAINT chk_materials_status CHECK (status IN ('available', 'empty'))
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '物料档案';
 
--- ---------------------------------------------------------------------
--- 入库单
--- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS stock_in_orders (
   id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   order_no    VARCHAR(40)  NOT NULL COMMENT '入库单号，如 IN-20261121-xxxx',
@@ -106,9 +101,6 @@ CREATE TABLE IF NOT EXISTS stock_in_items (
   CONSTRAINT fk_stock_in_items_material FOREIGN KEY (material_id) REFERENCES materials (id) ON DELETE RESTRICT
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '入库单明细';
 
--- ---------------------------------------------------------------------
--- 出库单（领用 / 标记为空 / 调整）
--- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS stock_out_orders (
   id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   order_no    VARCHAR(40)  NOT NULL COMMENT '出库单号，如 OUT-20261121-xxxx',
@@ -138,10 +130,6 @@ CREATE TABLE IF NOT EXISTS stock_out_items (
   CONSTRAINT fk_stock_out_items_material FOREIGN KEY (material_id) REFERENCES materials (id) ON DELETE RESTRICT
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '出库单明细';
 
--- ---------------------------------------------------------------------
--- 物料流水日志（只追加，不修改）
--- action: borrow（领用）/ restock（入库）/ empty（标记为空）/ adjust（调整）
--- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS material_logs (
   id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   material_id BIGINT UNSIGNED NOT NULL,
@@ -162,9 +150,6 @@ CREATE TABLE IF NOT EXISTS material_logs (
   CONSTRAINT chk_logs_action CHECK (action IN ('borrow', 'restock', 'empty', 'adjust'))
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '物料流水日志';
 
--- ---------------------------------------------------------------------
--- 成员访问记录（超级管理员通知面板）
--- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS user_visits (
   id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id    BIGINT UNSIGNED NULL,
@@ -177,3 +162,27 @@ CREATE TABLE IF NOT EXISTS user_visits (
   KEY idx_visits_created (visited_at),
   KEY idx_visits_user (user_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户访问记录';
+
+CREATE TABLE IF NOT EXISTS site_settings (
+  id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  app_name     VARCHAR(60)  NOT NULL DEFAULT '硬件物料台账' COMMENT '左上角主标题',
+  club_name    VARCHAR(60)  NOT NULL DEFAULT '校内硬件社团' COMMENT '左上角副标题',
+  logo_image   VARCHAR(255) NOT NULL DEFAULT '' COMMENT '自定义 Logo 图片路径，空则用内置图标',
+  cover_title  VARCHAR(80)  NOT NULL DEFAULT '硬件物料台账' COMMENT '封面主标题',
+  cover_slogan VARCHAR(120) NOT NULL DEFAULT '轻量化 ERP · 回收元器件统一台账' COMMENT '封面副文案',
+  cover_footer VARCHAR(255) NOT NULL DEFAULT 'Linda_ERP · 校内硬件社团' COMMENT '封面页脚',
+  updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '站点自定义配置';
+
+CREATE TABLE IF NOT EXISTS ui_settings (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  page       VARCHAR(30)  NOT NULL COMMENT '页面标识，如 login',
+  field_key  VARCHAR(60)  NOT NULL COMMENT '文案字段名，如 login_title',
+  label      VARCHAR(60)  NOT NULL DEFAULT '' COMMENT '后台展示名称',
+  value      VARCHAR(500) NOT NULL DEFAULT '' COMMENT '文案内容',
+  updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_ui_settings_page_key (page, field_key),
+  KEY idx_ui_settings_page (page)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '页面可编辑文案配置';

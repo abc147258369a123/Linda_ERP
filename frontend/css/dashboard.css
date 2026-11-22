@@ -8,21 +8,54 @@
 .period-picker {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  height: 30px;
   font-size: 12px;
   color: var(--text-3);
   white-space: nowrap;
 }
+/* 时钟图标：去掉行内 svg 的基线空隙，与下拉框共用同一水平中线 */
+.period-picker > svg { display: block; flex: none; }
+.period-picker > span { line-height: 1; }
 .period-picker .select {
+  /* 盒模型与顶栏其它控件统一：30px 高、胶囊圆角、左右内边距按「文字 + 箭头」分配 */
+  box-sizing: border-box;
   width: auto;
   min-width: 92px;
-  height: 28px;
-  min-height: 28px;
-  padding: 0 22px 0 9px;
-  border-radius: 14px;
-  background: var(--surface-2);
+  height: 30px;
+  min-height: 30px;
+  padding: 0 26px 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background-color: var(--surface-2);
+  /* 去掉各浏览器原生箭头（位置/大小不一致），改用统一的自定义 SVG 箭头 */
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b6b7f' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 12px 12px;
+  /* line-height 与 height 匹配，保证中文「本月」在不同浏览器里都垂直居中 */
+  line-height: 28px;
   font-size: 12px;
-  line-height: 1.2;
+  font-family: inherit;
+  color: var(--text-2);
+  text-align: left;
+  text-align-last: left;
+  cursor: pointer;
+}
+.period-picker .select:hover {
+  border-color: var(--border-strong);
+  background-color: var(--surface-3);
+}
+/* 焦点沿用 base.css 的单层焦点光环，显式声明避免双层边框视觉错位 */
+.period-picker .select:focus,
+.period-picker .select:focus-visible {
+  border-color: var(--brand);
+  box-shadow: none;
+  outline: 2px solid rgba(43, 125, 108, .22);
+  outline-offset: 0;
 }
 
 /* ---------- 欢迎横幅 ---------- */
@@ -342,8 +375,10 @@
 .banner-btn.is-primary { background: var(--brand); border-color: var(--brand); color: #fff; }
 .banner-btn.is-primary:hover { background: var(--brand-strong); color: #fff; }
 
-/* 周期筛选 */
-.period-picker .select { background: #fffdf7; }
+/* 周期筛选
+   注意：只改 background-color，不能用 background 简写，否则会清掉上面 --brand 配色的自定义箭头 */
+.period-picker .select { background-color: #fffdf7; }
+.period-picker .select:hover { background-color: var(--surface-3); }
 
 /* KPI：四张低饱和色块 */
 .kpi-card { box-shadow: none; border-color: transparent; }

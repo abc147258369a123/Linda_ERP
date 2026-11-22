@@ -1,6 +1,7 @@
 /**
- * 物料总览列表页
- * - 关键词搜索 + 管理模式 / 状态 / 分类 / 排序 多条件筛选
+ * 物料总览列表页（v1.4.0）
+ * - 关键词搜索 + 物料状态 / 物料分类（一级大类）/ 封装大小（联动分类）/ 排序
+ * - 分类列显示完整分类路径；物料名称旁显示累计领用次数，便于核对领用排序结果
  * - 简易模式显示「有货 / 空」，精确计数模式显示数量 + 状态
  * - 管理员：新增物料、导出 Excel、编辑入口；普通成员：仅查询 / 领用 / 详情
  */
@@ -20,17 +21,20 @@
 
   var state = {
     q: '',
-    mode: 'all',
-    status: 'all',
-    categoryId: 'all',
-    sort: 'updated',
+    status: 'all',            // all | available | empty | warn
+    categoryId: 'all',        // 选中的一级大类，'all' 表示全部分类
+    packageValue: '',         // 选中的封装，'' 表示全部封装
+    sort: 'inbound',          // inbound | qtyAsc | qtyDesc | borrowDesc | borrowAsc
     page: 0,
-    pageSize: 12
+    pageSize: 12,
+    // 分类管理页跳转到子分类时：分类下拉选中的是其一级大类，这里记录子分类做精确过滤
+    pinnedCategoryId: null
   };
   var filtered = [];
 
   var stats = ERP.store.stats();
-  var categories = ERP.store.categories();
+  // v1.4.0：分类下拉只列一级大类（tree roots），数量显示含子级合计的 totalCount
+  var categoryRoots = ERP.store.categoryTree();
 
   /* ---------------- 页面骨架 ---------------- */
 
@@ -52,9 +56,10 @@
         '<div class="stat-sub">按数量管理，领用需填写数量</div>' +
       '</div>';
 
-  var categoryOptions = '<option value="all">全部分类</option>' + categories.map(function (category) {
-    return '<option value="' + esc(category.id) + '">' + esc(category.name) +
-      '（' + category.count + '）</option>';
+  // 分类下拉：只列一级大类，括号内为「本级 + 全部子孙分类」的物料合计
+  var categoryOptions = '<option value="all">全部分类</option>' + categoryRoots.map(function (root) {
+    return '<option value="' + esc(root.id) + '">' + esc(root.name) +
+      '（' + Number(root.totalCount || 0) + '）</option>';
   }).join('');
 
   view.content.innerHTML =
@@ -99,33 +104,41 @@
       '<div class="filter-bar">' +
         '<input class="input input-search" id="searchInput" type="search" ' +
           'placeholder="搜索物料名称、型号、规格、品牌、存放位置…" autocomplete="off">' +
-        '<select class="select" id="filterMode" aria-label="管理模式">' +
-          '<option value="all">全部模式</option>' +
-          '<option value="simple">简易模式</option>' +
-          '<option value="precise">精确计数</option>' +
-        '</select>' +
-        '<select class="select" id="filterStatus" aria-label="库存状态">' +
+        '<select class="select" id="filterStatus" aria-label="物料状态">' +
           '<option value="all">全部状态</option>' +
           '<option value="available">有货</option>' +
-          '<option value="empty">空</option>' +
+          '<option value="empty">无货</option>' +
+          '<option value="warn">低库存预警</option>' +
         '</select>' +
         '<select class="select" id="filterCategory" aria-label="物料分类">' + categoryOptions + '</select>' +
+        '<select class="select" id="filterPackage" aria-label="封装大小">' +
+          '<option value="">全部封装</option>' +
+        '</select>' +
         '<select class="select" id="filterSort" aria-label="排序方式">' +
-          '<option value="updated">最近更新</option>' +
           '<option value="inbound">入库时间</option>' +
-          '<option value="name">名称排序</option>' +
-          '<option value="qty">库存从低到高</option>' +
-          '<option value="warn">预警优先</option>' +
+          '<option value="qtyAsc">库存最少</option>' +
+          '<option value="qtyDesc">库存最多</option>' +
+          '<option value="borrowDesc">领用最多</option>' +
+          '<option value="borrowAsc">领用最少</option>' +
         '</select>' +
         '<button class="btn btn-sm" type="button" id="resetBtn">重置</button>' +
         '<span class="filter-spacer"></span>' +
         '<span class="filter-count" id="resultCount"></span>' +
       '</div>' +
+      // 子分类精确过滤提示（URL 带 categoryId 且为子分类时显示）
+      '<div class="filter-pin" id="filterPin" hidden ' +
+        'style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 18px;' +
+        'border-bottom:1px solid var(--border);background:var(--brand-weak);' +
+        'font-size:12.5px;color:var(--text-2)">' +
+        '<span class="tag tag-brand">子分类</span>' +
+        '<span id="filterPinText"></span>' +
+        '<button class="btn-link" type="button" id="clearPinBtn">查看该大类全部物料</button>' +
+      '</div>' +
       '<div class="table-wrap">' +
         '<table class="table">' +
           '<thead><tr>' +
             '<th>物料</th>' +
-            '<th>分类</th>' +
+            '<th>分类路径</th>' +
             '<th>管理模式</th>' +
             '<th>库存 / 状态</th>' +
             '<th>存放位置</th>' +
@@ -142,30 +155,178 @@
   /* ---------------- 渲染 ---------------- */
 
   var searchInput = $('#searchInput');
+  var filterStatus = $('#filterStatus');
+  var filterCategory = $('#filterCategory');
+  var filterPackage = $('#filterPackage');
+  var filterSort = $('#filterSort');
+  var filterPin = $('#filterPin');
+  var filterPinText = $('#filterPinText');
+  var tbody = $('#materialBody');
+  var listFoot = $('#listFoot');
+  var resultCount = $('#resultCount');
+
+  /* ---------------- 分类 / 封装辅助（v1.4.0） ---------------- */
+
+  function findCategoryById(categoryId) {
+    var found = null;
+    ERP.store.categories().forEach(function (category) {
+      if (String(category.id) === String(categoryId)) found = category;
+    });
+    return found;
+  }
+
+  /** 取某个分类所属的一级大类 id（基于扁平分类的 parentId 逐级向上回溯） */
+  function rootIdOfCategory(category) {
+    var byId = {};
+    ERP.store.categories().forEach(function (item) { byId[String(item.id)] = item; });
+    var node = category;
+    var guard = 0;
+    while (node && guard < 32) {
+      var parentId = node.parentId;
+      if (parentId === null || parentId === undefined) return node.id;
+      var parent = byId[String(parentId)];
+      if (!parent || parent === node) return null;
+      node = parent;
+      guard += 1;
+    }
+    return null;
+  }
+
+  /** 分类自身 + 全部子孙分类的 id 列表（大类筛选要包含子分类下的物料） */
+  function subtreeIds(categoryId) {
+    var all = ERP.store.categories();
+    var ids = [];
+    var pending = [String(categoryId)];
+    while (pending.length) {
+      var current = pending.shift();
+      if (ids.indexOf(current) >= 0) continue;
+      ids.push(current);
+      all.forEach(function (category) {
+        if (category.parentId === null || category.parentId === undefined) return;
+        if (String(category.parentId) !== current) return;
+        if (ids.indexOf(String(category.id)) < 0) pending.push(String(category.id));
+      });
+    }
+    return ids;
+  }
+
+  /** 分类下拉视角的筛选范围：选中大类 + 全部子孙分类；全部分类返回 null */
+  function dropdownCategoryIds() {
+    if (state.categoryId !== 'all') return subtreeIds(state.categoryId);
+    return null;
+  }
+
+  /** 物料实际过滤范围：URL 带入的子分类精确过滤优先，其次分类下拉选中的大类 */
+  function scopeCategoryIds() {
+    if (state.pinnedCategoryId !== null) return subtreeIds(state.pinnedCategoryId);
+    return dropdownCategoryIds();
+  }
+
+  /** 封装自然排序：字符串含数字时按数字比较（0402 < 0603 < 0805） */
+  function naturalCompare(a, b) {
+    var ax = String(a).match(/(\d+|\D+)/g) || [];
+    var bx = String(b).match(/(\d+|\D+)/g) || [];
+    var len = Math.min(ax.length, bx.length);
+    for (var i = 0; i < len; i += 1) {
+      var aIsNum = /^\d+$/.test(ax[i]);
+      var bIsNum = /^\d+$/.test(bx[i]);
+      if (aIsNum && bIsNum) {
+        var diff = Number(ax[i]) - Number(bx[i]);
+        if (diff !== 0) return diff;
+        // 数值相同（如 0603 与 603）时短写法在前，保证排序稳定
+        if (ax[i].length !== bx[i].length) return ax[i].length - bx[i].length;
+      } else if (aIsNum !== bIsNum) {
+        return aIsNum ? -1 : 1;
+      } else {
+        var textDiff = ax[i].toLowerCase().localeCompare(bx[i].toLowerCase());
+        if (textDiff !== 0) return textDiff;
+      }
+    }
+    if (ax.length !== bx.length) return ax.length - bx.length;
+    return String(a).localeCompare(String(b));
+  }
+
+  /** 分类下拉范围内出现过的封装（去重 + 自然排序） */
+  function packageValues() {
+    var scoped = ERP.store.listMaterials({ categoryIds: dropdownCategoryIds() });
+    var seen = {};
+    var values = [];
+    scoped.forEach(function (material) {
+      var value = String(material.package || '').trim();
+      if (!value || seen[value]) return;
+      seen[value] = true;
+      values.push(value);
+    });
+    values.sort(naturalCompare);
+    return values;
+  }
+
+  /** 重建封装下拉选项：分类切换后旧封装不在新列表里时自动回到「全部封装」 */
+  function refreshPackageOptions() {
+    if (!filterPackage) return;
+    var values = packageValues();
+    var keep = state.packageValue && values.indexOf(state.packageValue) >= 0 ? state.packageValue : '';
+    var html = '<option value="">全部封装</option>';
+    values.forEach(function (value) {
+      html += '<option value="' + esc(value) + '">' + esc(value) + '</option>';
+    });
+    filterPackage.innerHTML = html;
+    filterPackage.value = keep;
+    state.packageValue = keep;
+  }
+
+  /** 分类下拉取值与 state 对齐（URL 带入的分类可能已不存在） */
+  function syncCategorySelect() {
+    var exists = categoryRoots.some(function (root) {
+      return String(root.id) === String(state.categoryId);
+    });
+    state.categoryId = exists ? String(state.categoryId) : 'all';
+    filterCategory.value = state.categoryId;
+  }
+
+  /** 子分类精确过滤提示条 */
+  function renderFilterPin() {
+    if (!filterPin || !filterPinText) return;
+    if (state.pinnedCategoryId === null) {
+      filterPin.hidden = true;
+      filterPinText.textContent = '';
+      return;
+    }
+    var path = ERP.store.categoryPath(state.pinnedCategoryId) ||
+      ERP.store.categoryName(state.pinnedCategoryId) || '未知分类';
+    filterPinText.textContent = '已按子分类精确过滤：' + path + '（分类下拉显示其所属一级大类）';
+    filterPin.hidden = false;
+  }
+
+  /* ---------------- 初始条件（URL 参数） ---------------- */
+
   // 顶栏全局搜索跳转：index.html?q=关键词
   var initialQuery = ERP.ui.getParam('q');
   if (initialQuery) {
     state.q = initialQuery;
     searchInput.value = initialQuery;
   }
-  var filterMode = $('#filterMode');
-  var filterStatus = $('#filterStatus');
-  var filterCategory = $('#filterCategory');
-  // 分类管理页跳转：index.html?categoryId=C-01
+  // 分类管理页跳转：index.html?categoryId=ID
+  // - 一级分类：直接选中该大类
+  // - 子分类：选中其所属一级大类，并保留子分类作为精确过滤（结果提示条会说明）
   var initialCategory = ERP.ui.getParam('categoryId');
   if (initialCategory) {
-    var categoryExists = ERP.store.categories().some(function (category) {
-      return String(category.id) === String(initialCategory);
-    });
-    if (categoryExists) {
-      state.categoryId = initialCategory;
-      filterCategory.value = initialCategory;
+    var initialNode = findCategoryById(initialCategory);
+    if (initialNode) {
+      if (initialNode.parentId === null || initialNode.parentId === undefined) {
+        state.categoryId = String(initialNode.id);
+      } else {
+        var initialRootId = rootIdOfCategory(initialNode);
+        if (initialRootId !== null) {
+          state.categoryId = String(initialRootId);
+          state.pinnedCategoryId = String(initialNode.id);
+        }
+      }
     }
   }
-  var filterSort = $('#filterSort');
-  var tbody = $('#materialBody');
-  var listFoot = $('#listFoot');
-  var resultCount = $('#resultCount');
+  syncCategorySelect();
+  filterSort.value = state.sort;
+  refreshPackageOptions();
 
   function detailHref(id) {
     return ERP.url('pages/material-detail.html?id=' + encodeURIComponent(id));
@@ -203,8 +364,28 @@
     return '<div class="row-actions">' + html + '</div>';
   }
 
+  /** 完整分类路径（一级 / 二级 / 三级），路径为空时回退单级分类名 */
+  function categoryPathHtml(categoryId) {
+    var path = ERP.store.categoryPath(categoryId);
+    if (!path) {
+      return '<span class="cell-text">' + esc(ERP.store.categoryName(categoryId) || '—') + '</span>';
+    }
+    var parts = path.split(' / ');
+    var nodes = parts.map(function (part, index) {
+      var isLeaf = index === parts.length - 1;
+      return '<span class="path-node' + (isLeaf ? ' is-leaf' : '') + '">' + esc(part) + '</span>';
+    }).join(' / ');
+    return '<div class="cell-path" title="' + esc(path) + '">' + nodes + '</div>';
+  }
+
+  /** 领用次数小标签：让「领用最多 / 最少」的排序结果可以直接核对 */
+  function borrowBadge(material) {
+    var count = Number(material.borrowCount) || 0;
+    return '<span class="mat-borrow' + (count > 0 ? '' : ' is-zero') +
+      '" title="累计领用次数">领用 ' + count + ' 次</span>';
+  }
+
   function rowHtml(material) {
-    var category = ERP.store.categoryName(material.categoryId);
     var subParts = [material.package, material.brand].filter(Boolean);
     return '<tr data-id="' + esc(material.id) + '">' +
       '<td>' +
@@ -223,6 +404,7 @@
           '<div>' +
             '<div class="mat-name">' +
               '<a href="' + esc(detailHref(material.id)) + '">' + esc(material.name) + '</a>' +
+              borrowBadge(material) +
             '</div>' +
             '<div class="mat-model">' +
               '<a href="' + esc(detailHref(material.id)) + '">' + esc(material.model || '—') + '</a>' +
@@ -231,7 +413,7 @@
           '</div>' +
         '</div>' +
       '</td>' +
-      '<td><span class="cell-text">' + esc(category || '—') + '</span></td>' +
+      '<td>' + categoryPathHtml(material.categoryId) + '</td>' +
       '<td>' + ERP.ui.tagMode(material.mode) + '</td>' +
       '<td>' + stockCell(material) + '</td>' +
       '<td>' +
@@ -258,18 +440,24 @@
   }
 
   function filtersActive() {
-    return Boolean(state.q) || state.mode !== 'all' || state.status !== 'all' ||
-      state.categoryId !== 'all' || state.sort !== 'updated';
+    return Boolean(state.q) || state.status !== 'all' ||
+      state.categoryId !== 'all' || Boolean(state.packageValue) ||
+      state.sort !== 'inbound' || state.pinnedCategoryId !== null;
+  }
+
+  /** 统一的筛选 / 排序参数：列表渲染与导出共用，保证导出内容与当前条件一致 */
+  function currentQuery() {
+    return {
+      q: state.q,
+      status: state.status,
+      categoryIds: scopeCategoryIds(),
+      package: state.packageValue,
+      sort: state.sort
+    };
   }
 
   function render() {
-    filtered = ERP.store.listMaterials({
-      q: state.q,
-      mode: state.mode,
-      status: state.status,
-      categoryId: state.categoryId,
-      sort: state.sort
-    });
+    filtered = ERP.store.listMaterials(currentQuery());
 
     var total = filtered.length;
     var pages = Math.max(1, Math.ceil(total / state.pageSize));
@@ -295,28 +483,31 @@
       '<span>共 <strong>' + total + '</strong> 条' +
         (filtersActive() ? ' · 已按条件筛选' : '') +
         ' · 第 ' + (state.page + 1) + ' / ' + pages + ' 页</span>' + pager;
+
+    renderFilterPin();
   }
 
   function readFilters() {
     state.q = searchInput.value.trim();
-    state.mode = filterMode.value;
     state.status = filterStatus.value;
     state.categoryId = filterCategory.value;
+    state.packageValue = filterPackage.value;
     state.sort = filterSort.value;
   }
 
   function resetFilters() {
     searchInput.value = '';
-    filterMode.value = 'all';
     filterStatus.value = 'all';
     filterCategory.value = 'all';
-    filterSort.value = 'updated';
+    filterSort.value = 'inbound';
     state.q = '';
-    state.mode = 'all';
     state.status = 'all';
     state.categoryId = 'all';
-    state.sort = 'updated';
+    state.packageValue = '';
+    state.sort = 'inbound';
+    state.pinnedCategoryId = null;
     state.page = 0;
+    refreshPackageOptions();
     render();
   }
 
@@ -328,7 +519,7 @@
     render();
   }, 200));
 
-  [filterMode, filterStatus, filterCategory, filterSort].forEach(function (select) {
+  [filterStatus, filterPackage, filterSort].forEach(function (select) {
     select.addEventListener('change', function () {
       readFilters();
       state.page = 0;
@@ -336,19 +527,34 @@
     });
   });
 
+  // 分类联动：切换大类时重算封装可选项，并把封装重置为「全部封装」
+  filterCategory.addEventListener('change', function () {
+    readFilters();
+    state.pinnedCategoryId = null;
+    state.packageValue = '';
+    filterPackage.value = '';
+    state.page = 0;
+    refreshPackageOptions();
+    render();
+  });
+
+  // 提示条：清除子分类精确过滤，只看该大类全部物料
+  if (filterPin) {
+    filterPin.addEventListener('click', function (event) {
+      if (!event.target.closest('#clearPinBtn')) return;
+      state.pinnedCategoryId = null;
+      state.page = 0;
+      render();
+    });
+  }
+
   $('#resetBtn').addEventListener('click', resetFilters);
 
   if (isAdmin) {
     var exportBtn = $('#exportBtn');
     if (exportBtn) {
       exportBtn.addEventListener('click', function () {
-        var list = ERP.store.listMaterials({
-          q: state.q,
-          mode: state.mode,
-          status: state.status,
-          categoryId: state.categoryId,
-          sort: state.sort
-        });
+        var list = ERP.store.listMaterials(currentQuery());
         if (!list.length) {
           ERP.ui.toast('当前筛选结果为空，没有可导出的数据', 'warn');
           return;
@@ -365,9 +571,11 @@
             material.brand || '',
             (ERP.config.modeLabels || {})[material.mode] || material.mode,
             material.mode === 'precise' ? Number(material.qty) || 0 : '',
+            Number(material.borrowCount) || 0,
             statusText,
             [material.cabinet, material.slot].filter(Boolean).join(' '),
-            ERP.store.categoryName(material.categoryId),
+            ERP.store.categoryPath(material.categoryId) ||
+              ERP.store.categoryName(material.categoryId),
             material.source || '',
             ERP.ui.fmtDate(material.inboundAt),
             material.mode === 'precise' ? Number(material.minQty) || 0 : '',
@@ -383,9 +591,10 @@
           { title: '品牌', width: 15 },
           { title: '管理模式', width: 12 },
           { title: '库存数量', width: 10 },
+          { title: '领用次数', width: 10 },
           { title: '状态', width: 15 },
           { title: '存放位置', width: 18 },
-          { title: '物料分类', width: 14 },
+          { title: '分类路径', width: 22 },
           { title: '来源项目', width: 18 },
           { title: '入库时间', width: 13 },
           { title: '预警阈值', width: 10 },

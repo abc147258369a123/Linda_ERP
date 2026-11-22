@@ -65,6 +65,8 @@
       categoryName: raw.category_name || '',
       source: raw.source || '',
       inboundAt: raw.inbound_at || '',
+      // v1.4.0：领用次数（后端按 material_logs 实时聚合，缺省为 0）
+      borrowCount: Number(raw.borrow_count || 0),
       updatedAt: raw.updated_at || '',
       image: raw.image || 'assets/img/default.svg',
       note: raw.note || '',
@@ -106,17 +108,40 @@
     };
   }
 
+  /**
+   * 分类映射（v1.3.0 树形多级）：
+   * - count / total_count 由后端实时统计，前端不再重算
+   * - level 从 1 开始；parent_id=null 表示一级分类
+   */
   function mapCategory(raw) {
-    return { id: raw.id, name: raw.name, count: 0, warnCount: 0, emptyCount: 0 };
+    return {
+      id: raw.id,
+      name: raw.name,
+      parentId: raw.parent_id === null || raw.parent_id === undefined ? null : raw.parent_id,
+      count: Number(raw.count || 0),
+      totalCount: Number(raw.total_count === null || raw.total_count === undefined
+        ? (raw.count || 0)
+        : raw.total_count),
+      level: Number(raw.level || 1),
+      hasChildren: Boolean(raw.has_children)
+    };
   }
 
   function rebuildDerived() {
+    // 只补算本地派生字段（低库存 / 空缺，用于表格展示）；
+    // count / totalCount 一律沿用服务端返回值，避免与后端实时统计不一致。
     var categories = cache.categories.map(function (category) {
-      var used = cache.materials.filter(function (m) { return m.categoryId === category.id; });
+      var used = cache.materials.filter(function (m) {
+        return String(m.categoryId) === String(category.id);
+      });
       return {
         id: category.id,
         name: category.name,
-        count: used.length,
+        parentId: category.parentId === null || category.parentId === undefined ? null : category.parentId,
+        count: category.count,
+        totalCount: category.totalCount,
+        level: category.level,
+        hasChildren: Boolean(category.hasChildren),
         warnCount: used.filter(isWarn).length,
         emptyCount: used.filter(function (m) { return m.status === 'empty'; }).length
       };
@@ -153,6 +178,118 @@
       if (String(category.id) === String(categoryId)) found = category.name;
     });
     return found;
+  }
+
+  function findCategory(id) {
+    var found = null;
+    cache.categories.forEach(function (category) {
+      if (String(category.id) === String(id)) found = category;
+    });
+    return found;
+  }
+
+  /**
+   * 完整分类路径（v1.4.0）：基于扁平分类缓存的 parentId 逐级向上回溯，
+   * 返回「一级 / 二级 / 三级」形式的字符串；分类不存在时返回空字符串。
+   * 例：categoryPath(12) => '电阻 / 贴片电阻 / 0603'
+   */
+  function categoryPath(categoryId) {
+    if (categoryId === null || categoryId === undefined || categoryId === '') return '';
+    var byId = {};
+    cache.categories.forEach(function (category) {
+      byId[String(category.id)] = category;
+    });
+    var names = [];
+    var current = byId[String(categoryId)];
+    var guard = 0;
+    while (current && guard < 32) {
+      names.unshift(current.name);
+      var parentId = current.parentId;
+      if (parentId === null || parentId === undefined) break;
+      var parent = byId[String(parentId)];
+      if (!parent || parent === current) break;
+      current = parent;
+      guard += 1;
+    }
+    return names.join(' / ');
+  }
+
+  /**
+   * 从扁平分类缓存构建嵌套树（返回根节点数组）。
+   * - 节点字段：id / name / parentId / count / totalCount / level /
+   *   hasChildren / warnCount / emptyCount / children
+   * - level 以实际挂载深度为准；父分类缺失或成环的节点提升为一级分类，避免节点丢失
+   */
+  function categoryTree() {
+    var nodes = {};
+    var order = [];
+    var roots = [];
+
+    cache.categories.forEach(function (category) {
+      var key = String(category.id);
+      nodes[key] = {
+        id: category.id,
+        name: category.name,
+        parentId: category.parentId === null || category.parentId === undefined ? null : category.parentId,
+        count: Number(category.count || 0),
+        totalCount: Number(category.totalCount === null || category.totalCount === undefined
+          ? (category.count || 0)
+          : category.totalCount),
+        level: Number(category.level || 1),
+        hasChildren: Boolean(category.hasChildren),
+        warnCount: Number(category.warnCount || 0),
+        emptyCount: Number(category.emptyCount || 0),
+        children: []
+      };
+      order.push(key);
+    });
+
+    order.forEach(function (key) {
+      var node = nodes[key];
+      var parentKey = node.parentId === null ? null : String(node.parentId);
+      if (parentKey && parentKey !== key && nodes[parentKey]) {
+        nodes[parentKey].children.push(node);
+      } else {
+        node.parentId = null;
+        roots.push(node);
+      }
+    });
+
+    // 防御：父子关系成环时上述节点都挂不上根，这里把不可达节点提升为一级分类
+    var reached = {};
+    function markReached(list) {
+      list.forEach(function (node) {
+        var key = String(node.id);
+        if (reached[key]) return;
+        reached[key] = true;
+        markReached(node.children);
+      });
+    }
+    markReached(roots);
+    order.forEach(function (key) {
+      if (reached[key]) return;
+      var node = nodes[key];
+      var parentKey = node.parentId === null ? null : String(node.parentId);
+      if (parentKey && nodes[parentKey]) {
+        nodes[parentKey].children = nodes[parentKey].children.filter(function (child) {
+          return child !== node;
+        });
+      }
+      node.parentId = null;
+      roots.push(node);
+      markReached([node]);
+    });
+
+    function decorate(list, level) {
+      list.forEach(function (node) {
+        node.level = level;
+        node.hasChildren = node.children.length > 0;
+        decorate(node.children, level + 1);
+      });
+    }
+    decorate(roots, 1);
+
+    return roots;
   }
 
   async function load() {
@@ -254,11 +391,27 @@
     materials: function () { return cache.materials.slice(); },
     getMaterial: function (id) { return findMaterial(id); },
     categoryName: categoryName,
+    categoryPath: categoryPath,
     isWarn: isWarn,
 
+    /**
+     * 物料筛选 + 排序（内存缓存）
+     * 兼容 v1.3.0 参数：q / mode / status('all'|'available'|'empty') /
+     *   categoryId（单值）/ warnOnly / sort('updated'|'name'|'qty'|'inbound'|'warn')
+     * v1.4.0 新增参数：
+     *   - status 追加 'warn'（低库存预警，按 isWarn 判定）
+     *   - categoryIds: [id,...] 分类集合过滤（通常传某大类及其全部子孙分类）
+     *   - package: ''|值 封装精确过滤
+     *   - sort 追加 'qtyAsc'|'qtyDesc'|'borrowDesc'|'borrowAsc'
+     */
     listMaterials: function (options) {
       var opts = options || {};
       var list = cache.materials.slice();
+
+      function byName(a, b) {
+        return String(a.name || '').localeCompare(String(b.name || ''), 'zh');
+      }
+
       var keyword = String(opts.q || '').trim().toLowerCase();
       if (keyword) {
         list = list.filter(function (material) {
@@ -270,15 +423,33 @@
         });
       }
       if (opts.mode && opts.mode !== 'all') list = list.filter(function (m) { return m.mode === opts.mode; });
-      if (opts.status && opts.status !== 'all') list = list.filter(function (m) { return m.status === opts.status; });
+      if (opts.status && opts.status !== 'all') {
+        if (opts.status === 'warn') {
+          list = list.filter(isWarn);
+        } else {
+          list = list.filter(function (m) { return m.status === opts.status; });
+        }
+      }
+      // v1.4.0：分类集合过滤（大类 + 全部子孙分类）
+      if (opts.categoryIds && opts.categoryIds.length) {
+        var idSet = {};
+        opts.categoryIds.forEach(function (id) { idSet[String(id)] = true; });
+        list = list.filter(function (m) { return Boolean(idSet[String(m.categoryId)]); });
+      }
+      // v1.3.0：单值分类过滤（保留原有行为）
       if (opts.categoryId && opts.categoryId !== 'all') {
         list = list.filter(function (m) { return String(m.categoryId) === String(opts.categoryId); });
+      }
+      // v1.4.0：封装精确过滤
+      if (opts.package) {
+        var packageValue = String(opts.package);
+        list = list.filter(function (m) { return String(m.package || '') === packageValue; });
       }
       if (opts.warnOnly) list = list.filter(isWarn);
 
       var sort = opts.sort || 'updated';
       if (sort === 'name') {
-        list.sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'zh'); });
+        list.sort(byName);
       } else if (sort === 'qty') {
         list.sort(function (a, b) {
           var pa = a.mode === 'precise';
@@ -288,7 +459,29 @@
             var diff = Number(a.qty) - Number(b.qty);
             if (diff !== 0) return diff;
           }
-          return String(a.name).localeCompare(String(b.name), 'zh');
+          return byName(a, b);
+        });
+      } else if (sort === 'qtyAsc' || sort === 'qtyDesc') {
+        // 库存排序：qty 升降序，简易模式 qty=null 一律排在最后
+        var qtyFactor = sort === 'qtyAsc' ? 1 : -1;
+        list.sort(function (a, b) {
+          var qa = a.qty === null || a.qty === undefined || a.qty === '' ? null : Number(a.qty);
+          var qb = b.qty === null || b.qty === undefined || b.qty === '' ? null : Number(b.qty);
+          if (qa !== null && !isFinite(qa)) qa = null;
+          if (qb !== null && !isFinite(qb)) qb = null;
+          if (qa === null && qb === null) return byName(a, b);
+          if (qa === null) return 1;
+          if (qb === null) return -1;
+          if (qa !== qb) return (qa - qb) * qtyFactor;
+          return byName(a, b);
+        });
+      } else if (sort === 'borrowDesc' || sort === 'borrowAsc') {
+        // 领用次数排序：同次数按名称，保证结果稳定
+        var borrowFactor = sort === 'borrowDesc' ? -1 : 1;
+        list.sort(function (a, b) {
+          var diff = Number(a.borrowCount || 0) - Number(b.borrowCount || 0);
+          if (diff !== 0) return diff * borrowFactor;
+          return byName(a, b);
         });
       } else if (sort === 'inbound') {
         list.sort(function (a, b) { return String(b.inboundAt || '').localeCompare(String(a.inboundAt || '')); });
@@ -296,7 +489,7 @@
         list.sort(function (a, b) {
           var diff = Number(isWarn(b)) - Number(isWarn(a));
           if (diff !== 0) return diff;
-          return String(a.name).localeCompare(String(b.name), 'zh');
+          return byName(a, b);
         });
       } else {
         list.sort(function (a, b) { return String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')); });
@@ -459,15 +652,18 @@
     },
 
     categories: function () { return cache.categories.slice(); },
+    categoryTree: categoryTree,
 
-    addCategory: async function (name) {
+    addCategory: async function (name, parentId) {
       var value = String(name || '').trim();
       if (!value) return { ok: false, error: '分类名称不能为空' };
       if (value.length > 30) return { ok: false, error: '分类名称不能超过 30 个字符' };
+      var parent = (parentId === null || parentId === undefined || parentId === '') ? null : Number(parentId);
+      if (parent !== null && !(parent > 0)) return { ok: false, error: '父分类不存在' };
       try {
-        var category = await ERP.api.post('/categories', { name: value });
+        var saved = await ERP.api.post('/categories', { name: value, parent_id: parent });
         await refresh();
-        return { ok: true, category: category };
+        return { ok: true, category: findCategory(saved.id) || mapCategory(saved) };
       } catch (error) {
         return { ok: false, error: error.message };
       }

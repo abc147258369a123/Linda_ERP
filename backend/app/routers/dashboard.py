@@ -1,4 +1,11 @@
-"""工作台统计：直接从 MariaDB 聚合 KPI 与趋势数据。"""
+"""工作台统计：直接从 MariaDB 聚合 KPI 与趋势数据（v1.3.0 修正统计口径）。
+
+统计口径：
+- 入库（inbound）：物料建档入库（materials.inbound_at）+ 真实补货流水（material_logs.action='restock'，
+  排除新增物料时自动生成的「初始库存」流水，避免重复计数）；
+- 领用（outbound）：material_logs.action='borrow'；
+- 因此在后台直接批量录入的物料，也能实时反映到趋势图上。
+"""
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -23,6 +30,9 @@ PERIOD_LABELS = {
     "half": "半年",
     "year": "本年",
 }
+
+# 新增物料时后端自动写入的初始库存流水，不应在趋势图里再算一次入库
+INITIAL_STOCK_NOTES = ("新增物料初始库存", "历史数据补录：新增物料初始库存")
 
 
 def _month_start(year: int, month: int) -> datetime:
@@ -69,12 +79,37 @@ def summary(
 ):
     period = period if period in PERIODS else "month"
     buckets, labels, start = _buckets(period)
+    by_day = period in ("week", "month")
 
     inbound = [0 for _ in buckets]
     outbound = [0 for _ in buckets]
     inbound_count = 0
     borrow_count = 0
+    new_material_count = 0
+    restock_count = 0
+    material_ids: set[int] = set()
+    bucket_index = {key: index for index, key in enumerate(buckets)}
 
+    def bucket_of(value: datetime):
+        key = value.strftime("%Y-%m-%d") if by_day else value.strftime("%Y-%m")
+        return bucket_index.get(key)
+
+    # 1) 物料建档入库（直接数据库录入的物料也能统计到）
+    created_rows = (
+        db.query(Material.id, Material.inbound_at)
+        .filter(Material.inbound_at >= start)
+        .all()
+    )
+    for material_id, inbound_at in created_rows:
+        index = bucket_of(inbound_at) if inbound_at else None
+        if index is None:
+            continue
+        inbound[index] += 1
+        inbound_count += 1
+        new_material_count += 1
+        material_ids.add(int(material_id))
+
+    # 2) 真实补货 / 领用流水
     logs = (
         db.query(MaterialLog)
         .filter(
@@ -83,20 +118,22 @@ def summary(
         )
         .all()
     )
-    material_ids = set()
-    bucket_index = {key: index for index, key in enumerate(buckets)}
     for log in logs:
-        material_ids.add(log.material_id)
-        key = log.created_at.strftime("%Y-%m-%d") if period in ("week", "month") else log.created_at.strftime("%Y-%m")
-        index = bucket_index.get(key)
-        if index is None:
-            continue
+        index = bucket_of(log.created_at)
         if log.action == "restock":
+            if (log.note or "") in INITIAL_STOCK_NOTES:
+                continue  # 建档初始库存已按 materials.inbound_at 统计
+            if index is None:
+                continue
             inbound[index] += 1
             inbound_count += 1
-        elif log.action == "borrow":
+            restock_count += 1
+        else:
+            if index is None:
+                continue
             outbound[index] += 1
             borrow_count += 1
+        material_ids.add(int(log.material_id))
 
     total_materials = db.query(func.count(Material.id)).scalar() or 0
     return {
@@ -105,6 +142,8 @@ def summary(
         "total_materials": int(total_materials),
         "inbound_count": inbound_count,
         "borrow_count": borrow_count,
+        "new_material_count": new_material_count,
+        "restock_count": restock_count,
         "material_entries": len(material_ids),
         "labels": labels,
         "inbound": inbound,

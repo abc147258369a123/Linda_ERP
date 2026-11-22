@@ -8,7 +8,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..deps import get_current_user, require_admin
+from ..deps import get_current_user, require_admin, require_super
 from ..models import Category, Material, MaterialLog, StockInItem, StockInOrder, User
 from ..schemas import MaterialCreate, MaterialStatusUpdate, MaterialUpdate
 from ..serializers import log_dict, material_dict
@@ -84,7 +84,21 @@ def list_materials(
         .limit(page_size)
         .all()
     )
-    items = [material_dict(material, category_name) for material, category_name in rows]
+    # 领用次数（v1.4.0：列表排序 / 展示用，实时聚合 material_logs）
+    material_ids = [material.id for material, _ in rows]
+    borrow_counts: dict[int, int] = {}
+    if material_ids:
+        borrow_counts = {
+            int(mid): int(count)
+            for mid, count in db.query(MaterialLog.material_id, func.count(MaterialLog.id))
+            .filter(MaterialLog.material_id.in_(material_ids), MaterialLog.action == "borrow")
+            .group_by(MaterialLog.material_id)
+            .all()
+        }
+    items = [
+        material_dict(material, category_name, borrow_counts.get(int(material.id), 0))
+        for material, category_name in rows
+    ]
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
@@ -97,7 +111,13 @@ def get_material(
     material = db.get(Material, material_id)
     if material is None:
         raise HTTPException(status_code=404, detail="物料不存在")
-    return material_dict(material, _category_name(db, material.category_id))
+    borrow_count = (
+        db.query(func.count(MaterialLog.id))
+        .filter(MaterialLog.material_id == material_id, MaterialLog.action == "borrow")
+        .scalar()
+        or 0
+    )
+    return material_dict(material, _category_name(db, material.category_id), int(borrow_count))
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, summary="新增物料档案")
@@ -236,6 +256,76 @@ def update_material_status(
     db.commit()
     db.refresh(material)
     return {"ok": True, "material": material_dict(material, _category_name(db, material.category_id))}
+
+
+@router.delete("/{material_id}", summary="删除物料档案（仅超级管理员）")
+def delete_material(
+    material_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_super),
+):
+    """删除物料档案及其关联流水 / 出入库明细。
+
+    表结构里 material_logs、stock_in_items、stock_out_items 对 materials 都是
+    ON DELETE RESTRICT，因此必须在同一事务内先清理关联记录，再删除物料本身，
+    并顺手清掉删除明细后变成空单的出入库单，避免出现「空单据」。
+    """
+    material = db.get(Material, material_id)
+    if material is None:
+        raise HTTPException(status_code=404, detail="物料不存在")
+
+    code = material.code
+    name = material.name
+
+    log_count = db.query(MaterialLog).filter(MaterialLog.material_id == material_id).delete(
+        synchronize_session=False
+    )
+    in_order_ids = [
+        row[0]
+        for row in db.query(StockInItem.order_id).filter(StockInItem.material_id == material_id).all()
+    ]
+    in_item_count = db.query(StockInItem).filter(StockInItem.material_id == material_id).delete(
+        synchronize_session=False
+    )
+    out_order_ids = [
+        row[0]
+        for row in db.query(StockOutItem.order_id).filter(StockOutItem.material_id == material_id).all()
+    ]
+    out_item_count = db.query(StockOutItem).filter(StockOutItem.material_id == material_id).delete(
+        synchronize_session=False
+    )
+
+    in_orders_deleted = 0
+    for order_id in set(in_order_ids):
+        remaining = db.query(func.count(StockInItem.id)).filter(StockInItem.order_id == order_id).scalar() or 0
+        if remaining == 0:
+            in_orders_deleted += db.query(StockInOrder).filter(StockInOrder.id == order_id).delete(
+                synchronize_session=False
+            )
+
+    out_orders_deleted = 0
+    for order_id in set(out_order_ids):
+        remaining = db.query(func.count(StockOutItem.id)).filter(StockOutItem.order_id == order_id).scalar() or 0
+        if remaining == 0:
+            out_orders_deleted += db.query(StockOutOrder).filter(StockOutOrder.id == order_id).delete(
+                synchronize_session=False
+            )
+
+    db.delete(material)
+    db.commit()
+
+    return {
+        "ok": True,
+        "message": f"物料 {code} 已删除",
+        "material": {"id": material_id, "code": code, "name": name},
+        "deleted": {
+            "logs": int(log_count),
+            "stock_in_items": int(in_item_count),
+            "stock_out_items": int(out_item_count),
+            "stock_in_orders": int(in_orders_deleted),
+            "stock_out_orders": int(out_orders_deleted),
+        },
+    }
 
 
 @router.get("/{material_id}/logs", summary="物料历史流水")

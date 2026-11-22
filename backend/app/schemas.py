@@ -61,6 +61,7 @@ class UserUpdate(BaseModel):
 
 class CategoryCreate(BaseModel):
     name: str = Field(min_length=1, max_length=30)
+    parent_id: Optional[int] = Field(default=None, gt=0)
 
     @field_validator("name")
     @classmethod
@@ -75,6 +76,26 @@ class CategoryUpdate(BaseModel):
     @classmethod
     def strip_name(cls, value: str) -> str:
         return value.strip()
+
+
+class SiteSettingsUpdate(BaseModel):
+    app_name: Optional[str] = Field(default=None, min_length=1, max_length=60)
+    club_name: Optional[str] = Field(default=None, min_length=1, max_length=60)
+    logo_image: Optional[str] = Field(default=None, max_length=255)
+    cover_title: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    cover_slogan: Optional[str] = Field(default=None, max_length=120)
+    cover_footer: Optional[str] = Field(default=None, max_length=255)
+
+    @field_validator("app_name", "club_name", "cover_title", "cover_slogan", "cover_footer")
+    @classmethod
+    def strip_text(cls, value: Optional[str]) -> Optional[str]:
+        return value.strip() if isinstance(value, str) else value
+
+
+class UiSettingsUpdate(BaseModel):
+    """页面文案批量修改：values 为 {field_key: value}。"""
+
+    values: dict[str, str] = Field(default_factory=dict)
 
 
 class MaterialCreate(BaseModel):

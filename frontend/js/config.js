@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 全局配置：应用信息、角色、导航、字典
  * 说明：ERP.base / ERP.url() 让页面在 http:// 与 file:// 两种打开方式下都能正确跳转。
  */
@@ -22,7 +22,7 @@
     appName: '硬件物料台账',
     clubName: '校内硬件社团',
     appDesc: '轻量化 ERP · 回收元器件统一台账',
-    version: 'v1.2.6',
+    version: 'v1.4.0',
 
     /** 开发期自动刷新（js/dev-reload.js 使用）。树莓派正式部署前改为 false */
     dev: true,
@@ -101,3 +101,4 @@
     return '/api';
   })();
 })();
+
