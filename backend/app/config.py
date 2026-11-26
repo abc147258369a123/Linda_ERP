@@ -1,4 +1,4 @@
-﻿"""应用配置：全部从环境变量读取（Docker env_file / docker-compose）。"""
+"""应用配置：全部从环境变量读取（Docker env_file / docker-compose）。"""
 from __future__ import annotations
 
 import os
@@ -26,7 +26,7 @@ def _env_list(name: str, default: str = "") -> List[str]:
 @dataclass(frozen=True)
 class Settings:
     app_name: str = "Linda_ERP"
-    app_version: str = _env("APP_VERSION", "1.7.0")
+    app_version: str = _env("APP_VERSION", "1.8.0")
     app_env: str = _env("APP_ENV", "production")
     app_host: str = _env("APP_HOST", "127.0.0.1")
     app_port: int = _env_int("APP_PORT", 8000)
@@ -49,6 +49,10 @@ class Settings:
     upload_dir: str = _env("UPLOAD_DIR", "/app/uploads")
     max_upload_mb: int = _env_int("MAX_UPLOAD_MB", 10)
     tz: str = _env("TZ", "Asia/Shanghai")
+
+    # 数据库备份（仅超级管理员）：独立 Git 仓库目录 + 独立 SSH key，不读写 ERP 源码仓库。
+    backup_dir: str = _env("BACKUP_DIR", "/app/db_backup")
+    backup_ssh_key: str = _env("BACKUP_SSH_KEY", "/home/app/.ssh/id_ed25519")
 
 
 settings = Settings()

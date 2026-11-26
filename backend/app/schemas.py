@@ -32,6 +32,16 @@ class ChangePasswordRequest(BaseModel):
         return _check_bcrypt_bytes(value)
 
 
+class BackupConfigUpdate(BaseModel):
+    """数据库备份仓库配置：只保存独立备份仓库 URL，不保存任何凭据。"""
+
+    repo_url: str = Field(default="", max_length=500)
+
+
+class BackupPushRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=120)
+
+
 class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=20, pattern=r"^[a-zA-Z0-9_.-]+$")
     password: str = Field(min_length=8, max_length=72)

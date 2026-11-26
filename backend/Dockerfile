@@ -12,15 +12,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# 数据库备份模块需要：独立 Git 仓库操作、SSH 免密推送、mariadb-dump 文本导出
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git openssh-client mariadb-client ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt ./
 RUN pip install --no-cache-dir --retries 5 --timeout 60 -r requirements.txt
 
 COPY app ./app
 
-RUN mkdir -p /app/uploads /app/logs \
+RUN mkdir -p /app/uploads /app/logs /home/app/.ssh \
     && addgroup --gid 1000 app \
     && adduser --uid 1000 --ingroup app --disabled-password --gecos "" app \
-    && chown -R app:app /app
+    && chown -R app:app /app /home/app/.ssh
 
 USER app
 

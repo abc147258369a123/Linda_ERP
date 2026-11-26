@@ -1,10 +1,19 @@
-﻿# Linda_ERP · 硬件社团物料台账
+# Linda_ERP · 硬件社团物料台账
 
-> 当前版本：**v1.7.0**（2026-11-27）｜线上：<https://linda.linzetao.online>
+> 当前版本：**v1.8.0**（2026-11-27）｜线上：<https://linda.linzetao.online>
 > 数据库：**linda_erp_v2**（v1.3.0 迁移后的新库；原库 `linda_erp` 结构与数据完整保留，可随时回滚）
 
 校内硬件社团的轻量化物料 ERP，包含**原生静态前端**与 **FastAPI + MariaDB 后端**。  
 后端面向 Raspberry Pi 4B 8GB + Ubuntu 24.04 LTS（ARM64）部署，使用 Docker + Docker Compose v2。
+
+## v1.8.0 迭代（2026-11-27）
+
+- **超管数据库备份页**：侧边栏【管理 → 数据库备份】新增超管专属页面，可配置独立的备份 Git 仓库；一键导出 MariaDB 全量 `.sql` 文本快照，选择文件后自动 `git add / commit / push`；列表展示备份时间、大小、提交状态与恢复说明。
+- **独立与安全**：备份目录 `/home/lin/erp_db_backup`、备份 SSH key `/home/lin/.ssh/erp-backup` 均与 ERP 源码仓库完全隔离；页面/接口仅 `super` 可用，所有导出/推送/配置变更记录操作人、时间和结果；推送前进行 Git、`mariadb-dump`、目录、密钥、远端连通性预检。
+- **字体可读性再优化（纯 CSS）**：正文轻微加粗（`font-weight:450`）、次级文字柔和加深，表单提示/卡片副标题/表头/日志时间等过小辅助文字统一放大；详情属性标签 13px/600、内容 13.5px，标签与内容层级更清楚。不改布局与业务逻辑。
+- **数据库**：无表结构变更；改动前已完成整库备份 `/home/lin/erp_backups/linda_erp_v2_before_v180_20261127_010609.sql` 并记录 SHA256。
+- **版本**：前端 v1.8.0、后端镜像 1.8.0、HTML 资源 `?v=1.8.0`；《使用手册》同步更新。
+- **部署提示**：v1.8.0 后端镜像新增 `git`、`openssh-client`、`mariadb-client`；首次配置需在备份仓库添加页面展示的 Deploy key（勾选写权限）。
 
 ## v1.7.0 迭代（2026-11-27）
 

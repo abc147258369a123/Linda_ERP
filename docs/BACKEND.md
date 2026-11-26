@@ -76,6 +76,9 @@ python-multipart==0.0.20
 | `PIP_INDEX_URL` | `https://pypi.tuna.tsinghua.edu.cn/simple` | | 国内 pip 源 |
 | `DB_PUBLISH_PORT` | `3306` | | 数据库映射到宿主机的回环端口 |
 | `DB_INNODB_BUFFER_POOL` | `1G` | | InnoDB 缓冲池（数据库 2GB 限制内） |
+| `BACKUP_HOST_DIR` | `/home/lin/erp_db_backup` | | v1.8.0 独立备份 Git 目录（宿主机，必须在项目目录之外） |
+| `BACKUP_SSH_HOST_DIR` | `/home/lin/.ssh/erp-backup` | | v1.8.0 独立部署密钥目录（宿主机，只读挂载） |
+| `BACKUP_DIR` / `BACKUP_SSH_KEY` | `/app/db_backup` / `/home/app/.ssh/id_ed25519` | | 容器内备份目录与密钥路径（compose 已固定） |
 
 ## 5. 生产模式启动命令（禁止 reload / debug）
 
@@ -159,10 +162,11 @@ sed -i 's|^IMAGE_PREFIX=.*|IMAGE_PREFIX=|' .env
 | `./data/mariadb` | `/var/lib/mysql` | MariaDB 数据文件 |
 | `./data/uploads` | `/app/uploads`（后端）、`/data/uploads`（Nginx 只读） | 物料图片等上传附件 |
 | `./data/logs` | `/app/logs` | 后端运行日志（10MB × 5 滚动） |
-| `./data/backups` | 宿主机保留 | 数据库备份（建议脚本 `mariadb-dump` 输出） |
+| `/home/lin/erp_db_backup` | `/app/db_backup` | v1.8.0 独立备份 Git 仓库（只存 `.sql`、配置与操作日志；**不在项目目录内**） |
+| `/home/lin/.ssh/erp-backup` | `/home/app/.ssh`（只读） | v1.8.0 备份专用 SSH 部署密钥（与 ERP 源码仓库无关） |
 | `./frontend` | `/usr/share/nginx/html`（Nginx 只读） | 前端静态页面 |
 
-> 备份建议：`docker compose exec -T mariadb mariadb-dump -uroot -p"$DB_ROOT_PASSWORD" --single-transaction linda_erp > data/backups/linda_erp_$(date +%F).sql`
+> 备份建议：优先使用超级管理员“数据库备份”页导出并推送。旧的手工备份仍可执行：`docker compose exec -T mariadb mariadb-dump -uroot -p"$DB_ROOT_PASSWORD" --single-transaction linda_erp_v2 > /home/lin/erp_backups/linda_erp_$(date +%F).sql`
 
 ## 9. 端口监听
 
@@ -258,6 +262,12 @@ docker compose exec -T backend python -m app.cli list-users
 | GET | `/api/inventory/stats` | 登录 | 工作台库存统计 |
 | GET | `/api/dashboard/summary?period=` | 登录 | 工作台 KPI 与进出库趋势（MariaDB 实时聚合） |
 | POST | `/api/uploads` | 管理员+ | 上传物料图片（≤10MB） |
+| GET | `/api/admin/backup/status` | **仅超级管理员** | 备份环境预检、仓库配置、公钥、最近备份 |
+| PUT | `/api/admin/backup/config` | **仅超级管理员** | 保存独立备份 Git 仓库地址 |
+| GET | `/api/admin/backup/list` | **仅超级管理员** | 本地 `.sql` 备份列表与推送状态 |
+| POST | `/api/admin/backup/export` | **仅超级管理员** | `mariadb-dump` 全量导出 `.sql` 文本快照 |
+| POST | `/api/admin/backup/push` | **仅超级管理员** | 选中备份，`git add/commit/push` 到独立仓库 |
+| GET | `/api/admin/backup/logs` | **仅超级管理员** | 导出/推送/配置操作日志 |
 | GET | `/api/health` | 公开 | 健康检查（含数据库连通） |
 
 响应为 JSON；分页统一返回 `{items,total,page,page_size}`；错误返回 `{"detail":"..."}` 与 4xx/5xx 状态码；认证头 `Authorization: Bearer <token>`。
