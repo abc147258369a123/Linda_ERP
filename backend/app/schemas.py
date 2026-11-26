@@ -101,6 +101,7 @@ class UiSettingsUpdate(BaseModel):
 class MaterialCreate(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     model: str = Field(min_length=1, max_length=80)
+    jlc_no: str = Field(default="", max_length=64)
     package: str = Field(default="", max_length=40)
     spec: str = Field(default="", max_length=200)
     brand: str = Field(default="", max_length=40)
@@ -119,6 +120,7 @@ class MaterialCreate(BaseModel):
 class MaterialUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=60)
     model: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    jlc_no: Optional[str] = Field(default=None, max_length=64)
     package: Optional[str] = Field(default=None, max_length=40)
     spec: Optional[str] = Field(default=None, max_length=200)
     brand: Optional[str] = Field(default=None, max_length=40)

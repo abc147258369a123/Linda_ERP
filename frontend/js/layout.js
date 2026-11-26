@@ -254,7 +254,7 @@
                 topbarActions +
                 '<div class="topbar-search">' +
                   ERP.icon('search', 15) +
-                  '<input type="search" id="erpGlobalSearch" placeholder="搜索物料、型号、位置…" ' +
+                  '<input type="search" id="erpGlobalSearch" placeholder="搜索物料、嘉立创编号、型号、位置…" ' +
                     'aria-label="搜索物料" autocomplete="off">' +
                 '</div>' +
                 '<span class="topbar-status" title="演示数据保存在浏览器本地"><span class="status-dot"></span>本地数据正常</span>' +

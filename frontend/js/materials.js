@@ -1,6 +1,7 @@
 /**
- * 物料总览列表页（v1.4.0）
+ * 物料总览列表页（v1.5.0）
  * - 关键词搜索 + 物料状态 / 物料分类（一级大类）/ 封装大小（联动分类）/ 排序
+ * - v1.5.0：搜索支持「精确匹配（整词）」/「模糊包含」两种模式，默认精确匹配
  * - 分类列显示完整分类路径；物料名称旁显示累计领用次数，便于核对领用排序结果
  * - 简易模式显示「有货 / 空」，精确计数模式显示数量 + 状态
  * - 管理员：新增物料、导出 Excel、编辑入口；普通成员：仅查询 / 领用 / 详情
@@ -25,6 +26,7 @@
     categoryId: 'all',        // 选中的一级大类，'all' 表示全部分类
     packageValue: '',         // 选中的封装，'' 表示全部封装
     sort: 'inbound',          // inbound | qtyAsc | qtyDesc | borrowDesc | borrowAsc
+    match: 'exact',           // v1.5.0：exact 精确匹配（默认）| contains 模糊包含
     page: 0,
     pageSize: 12,
     // 分类管理页跳转到子分类时：分类下拉选中的是其一级大类，这里记录子分类做精确过滤
@@ -94,7 +96,7 @@
       '<div class="card-hd">' +
         '<div>' +
           '<div class="card-title">物料列表</div>' +
-          '<div class="card-sub">支持按名称 / 型号 / 规格 / 品牌 / 存放位置 / 来源项目搜索</div>' +
+          '<div class="card-sub">支持按名称 / 型号 / 规格 / 嘉立创编号 / 品牌 / 存放位置 / 来源项目搜索</div>' +
         '</div>' +
         '<div class="legend">' +
           '<span class="tag tag-simple">简易模式</span><span>只记有货 / 空</span>' +
@@ -103,7 +105,16 @@
       '</div>' +
       '<div class="filter-bar">' +
         '<input class="input input-search" id="searchInput" type="search" ' +
-          'placeholder="搜索物料名称、型号、规格、品牌、存放位置…" autocomplete="off">' +
+          'placeholder="精确匹配：输入 1K 只匹配 1K 电阻" autocomplete="off">' +
+        // v1.5.0：搜索模式切换（默认精确匹配；两种模式共用同一关键词与其它筛选）
+        '<div class="search-mode" id="searchMode" role="group" aria-label="搜索匹配模式">' +
+          '<button class="search-mode-btn' + (state.match === 'exact' ? ' is-active' : '') + '" ' +
+            'type="button" data-match="exact" aria-pressed="' + (state.match === 'exact') + '" ' +
+            'title="精确匹配：关键词需与字段某个整词完全相同">精确匹配</button>' +
+          '<button class="search-mode-btn' + (state.match === 'contains' ? ' is-active' : '') + '" ' +
+            'type="button" data-match="contains" aria-pressed="' + (state.match === 'contains') + '" ' +
+            'title="模糊包含：字段中包含关键词即命中">模糊包含</button>' +
+        '</div>' +
         '<select class="select" id="filterStatus" aria-label="物料状态">' +
           '<option value="all">全部状态</option>' +
           '<option value="available">有货</option>' +
@@ -155,6 +166,7 @@
   /* ---------------- 渲染 ---------------- */
 
   var searchInput = $('#searchInput');
+  var searchMode = $('#searchMode');
   var filterStatus = $('#filterStatus');
   var filterCategory = $('#filterCategory');
   var filterPackage = $('#filterPackage');
@@ -164,6 +176,46 @@
   var tbody = $('#materialBody');
   var listFoot = $('#listFoot');
   var resultCount = $('#resultCount');
+
+  /* ---------------- v1.5.0：搜索匹配模式（精确 / 模糊） ---------------- */
+
+  var MATCH_MODES = {
+    exact: {
+      label: '精确匹配',
+      placeholder: '精确匹配：输入 1K / 嘉立创编号只匹配对应物料'
+    },
+    contains: {
+      label: '模糊包含',
+      placeholder: '模糊包含：匹配名称、型号、规格、嘉立创编号中含关键词的物料'
+    }
+  };
+
+  function matchLabel() {
+    return (MATCH_MODES[state.match] || MATCH_MODES.exact).label;
+  }
+
+  /** 同步分段按钮选中态（class + aria-pressed）与搜索框提示文案 */
+  function syncSearchMode() {
+    if (searchMode) {
+      Array.prototype.forEach.call(searchMode.querySelectorAll('[data-match]'), function (btn) {
+        var active = btn.getAttribute('data-match') === state.match;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
+    if (searchInput) {
+      searchInput.placeholder = (MATCH_MODES[state.match] || MATCH_MODES.exact).placeholder;
+    }
+  }
+
+  /** 切换匹配模式：保留当前关键词与其它筛选，回到第一页重新渲染 */
+  function setMatchMode(mode) {
+    state.match = mode === 'contains' ? 'contains' : 'exact';
+    state.page = 0;
+    readFilters(); // 把输入框里尚未触发 debounce 的关键词一并带上
+    syncSearchMode();
+    render();
+  }
 
   /* ---------------- 分类 / 封装辅助（v1.4.0） ---------------- */
 
@@ -301,9 +353,11 @@
   /* ---------------- 初始条件（URL 参数） ---------------- */
 
   // 顶栏全局搜索跳转：index.html?q=关键词
+  // v1.5.0：带关键词进入时默认「精确匹配」模式（state.match 初值即 exact）
   var initialQuery = ERP.ui.getParam('q');
   if (initialQuery) {
     state.q = initialQuery;
+    state.match = 'exact';
     searchInput.value = initialQuery;
   }
   // 分类管理页跳转：index.html?categoryId=ID
@@ -327,6 +381,7 @@
   syncCategorySelect();
   filterSort.value = state.sort;
   refreshPackageOptions();
+  syncSearchMode();
 
   function detailHref(id) {
     return ERP.url('pages/material-detail.html?id=' + encodeURIComponent(id));
@@ -429,11 +484,15 @@
   }
 
   function emptyRowHtml() {
+    // 空结果时按当前模式给出可操作的提示（仅在有关键词时区分，避免文案冗余）
+    var emptyDesc = state.q && state.match === 'exact'
+      ? '精确匹配要求关键词与某个字段的整词完全相同；可缩短关键词，或切换到「模糊包含」再试。'
+      : '换个关键词，或调整筛选条件；当前筛选无结果时也可以清空条件重新查看。';
     return '<tr><td colspan="8">' +
       '<div class="empty">' +
         ERP.icon('search', 40) +
         '<div class="empty-title">没有找到匹配的物料</div>' +
-        '<div class="empty-desc">换个关键词，或调整筛选条件；当前筛选无结果时也可以清空条件重新查看。</div>' +
+        '<div class="empty-desc">' + emptyDesc + '</div>' +
         '<div style="margin-top:14px"><button class="btn btn-sm" type="button" id="emptyResetBtn">清空筛选</button></div>' +
       '</div>' +
     '</td></tr>';
@@ -449,6 +508,8 @@
   function currentQuery() {
     return {
       q: state.q,
+      // v1.5.0：搜索模式同样进入统一查询参数，导出严格跟随当前模式
+      match: state.match,
       status: state.status,
       categoryIds: scopeCategoryIds(),
       package: state.packageValue,
@@ -467,9 +528,9 @@
 
     tbody.innerHTML = rows.length ? rows.map(rowHtml).join('') : emptyRowHtml();
 
-    resultCount.textContent = filtersActive()
+    resultCount.textContent = (filtersActive()
       ? '筛选结果 ' + total + ' 条'
-      : '共 ' + total + ' 条档案';
+      : '共 ' + total + ' 条档案') + (state.q ? '（' + matchLabel() + '）' : '');
 
     var pager =
       '<div class="pager">' +
@@ -482,6 +543,7 @@
     listFoot.innerHTML =
       '<span>共 <strong>' + total + '</strong> 条' +
         (filtersActive() ? ' · 已按条件筛选' : '') +
+        (state.q ? ' · ' + matchLabel() : '') +
         ' · 第 ' + (state.page + 1) + ' / ' + pages + ' 页</span>' + pager;
 
     renderFilterPin();
@@ -505,9 +567,12 @@
     state.categoryId = 'all';
     state.packageValue = '';
     state.sort = 'inbound';
+    // v1.5.0：重置恢复默认搜索模式（精确匹配）
+    state.match = 'exact';
     state.pinnedCategoryId = null;
     state.page = 0;
     refreshPackageOptions();
+    syncSearchMode();
     render();
   }
 
@@ -518,6 +583,18 @@
     state.page = 0;
     render();
   }, 200));
+
+  // 搜索模式切换：只改匹配规则，关键词与其它筛选保持不动
+  if (searchMode) {
+    searchMode.addEventListener('click', function (event) {
+      var btn = event.target.closest('[data-match]');
+      if (!btn) return;
+      var mode = btn.getAttribute('data-match');
+      if (mode !== 'exact' && mode !== 'contains') return;
+      if (mode === state.match) return;
+      setMatchMode(mode);
+    });
+  }
 
   [filterStatus, filterPackage, filterSort].forEach(function (select) {
     select.addEventListener('change', function () {

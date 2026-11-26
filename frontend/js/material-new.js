@@ -4,6 +4,8 @@
  * - 入库时间由系统自动填充，只读不可手改
  * - 新建后跳转到详情页；编辑时复用本页（?id=xxx）
  * - 物料分类使用一 / 二 / 三级级联下拉，始终绑定最深一级（叶子）分类 id
+ * - 实拍图支持两种方式上传：点「选择图片上传」或直接 Ctrl+V 粘贴剪贴板里的图片
+ *   （两条入口共用同一套校验与 /api/uploads 接口，数据库仍只存逗号分隔的相对路径）
  * - 编辑已有物料时，超级管理员可在底部操作区直接删除该物料（不可恢复）
  */
 (async function () {
@@ -100,19 +102,36 @@
 
   // 三个级联下拉对所有角色使用同一套逻辑；超级管理员额外多一个「新建子分类」按钮
   // 布局：占满表单整行 + 弹性排布，桌面同一行、窄屏自动换行，沿用页面 .select 样式
+  // ---------------------------------------------------------------------------
+  // v1.6.0：一 / 二 / 三级「可输入下拉」组件
+  //   - 可下拉选择已有分类，也可直接输入分类名称；
+  //   - 输入系统里不存在的分类名称时，提交物料时自动创建对应层级分类
+  //     （后端 POST /api/categories 仅超级管理员可用，普通管理员会被拦截提示）；
+  //   - 级联逻辑保留：上级变化 / 输入变化会清空更深层级。
+  // ---------------------------------------------------------------------------
+  function comboLevelHtml(level) {
+    var label = LEVEL_LABELS[level - 1];
+    return '<div class="combo" data-combo-level="' + level + '" style="flex:1 1 170px;min-width:0">' +
+      '<div class="combo-control">' +
+        '<input class="input combo-input" id="categoryLevel' + level + '" type="text" ' +
+          'autocomplete="off" spellcheck="false" ' +
+          'placeholder="选择或输入' + label + '级分类" aria-label="' + label + '级分类" ' +
+          'aria-autocomplete="list" aria-controls="categoryLevel' + level + 'Menu" ' +
+          (level > 1 ? 'disabled ' : '') + '>' +
+        '<button class="combo-toggle" type="button" tabindex="-1" ' +
+          'aria-label="展开' + label + '级分类备选" aria-haspopup="listbox">' +
+          ERP.icon('chevronRight', 12) +
+        '</button>' +
+      '</div>' +
+      '<div class="combo-menu" id="categoryLevel' + level + 'Menu" role="listbox" hidden></div>' +
+    '</div>';
+  }
+
   var categoryFieldHtml =
-    '<div style="display:flex;flex-wrap:wrap;gap:10px">' +
-      '<select class="select" id="categoryLevel1" aria-label="一级分类" style="flex:1 1 170px;min-width:0">' +
-        '<option value="">请选择一级分类</option>' +
-      '</select>' +
-      '<select class="select" id="categoryLevel2" aria-label="二级分类" style="flex:1 1 170px;min-width:0">' +
-        '<option value="">请选择二级分类</option>' +
-      '</select>' +
-      '<select class="select" id="categoryLevel3" aria-label="三级分类" style="flex:1 1 170px;min-width:0">' +
-        '<option value="">请选择三级分类</option>' +
-      '</select>' +
+    '<div class="combo-row">' +
+      comboLevelHtml(1) + comboLevelHtml(2) + comboLevelHtml(3) +
     '</div>' +
-    '<span class="field-hint" id="categoryHint">按一 / 二 / 三级依次选择，选到最末一级分类即可保存</span>' +
+    '<span class="field-hint" id="categoryHint">可下拉选择已有分类，也可直接输入分类名称；输入不存在的分类时，提交物料会自动创建（仅超级管理员可自动新建）</span>' +
     '<span class="field-hint" id="categoryPathTip" style="color:var(--warn);display:none"></span>' +
     (isSuper
       ? '<div style="margin-top:2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
@@ -191,6 +210,12 @@
               '<input class="input input-mono" id="materialModel" type="text" maxlength="60" ' +
                 'placeholder="如：ESP32-WROOM-32E" value="' +
                 esc(editing ? editing.model : '') + '">' +
+            '</div>' +
+            '<div class="field">' +
+              '<label class="label" for="materialJlcNo">嘉立创编号</label>' +
+              '<input class="input input-mono" id="materialJlcNo" type="text" maxlength="64" ' +
+                'placeholder="选填，如：C123456" value="' +
+                esc(editing ? (editing.jlcNo || '') : '') + '">' +
             '</div>' +
             '<div class="field">' +
               '<label class="label" for="materialPackage">封装</label>' +
@@ -297,7 +322,7 @@
         '<div class="card-hd">' +
           '<div>' +
             '<div class="card-title">物料图片与备注</div>' +
-            '<div class="card-sub">可上传多张实拍图（jpg / png，单张 ≤ 5MB，最多 5 张）；图片存服务器本地目录，数据库只保存相对路径</div>' +
+            '<div class="card-sub">可上传多张实拍图（jpg / png，单张 ≤ 5MB，最多 5 张）；也可复制图片后按 Ctrl+V 粘贴上传；图片存服务器本地目录，数据库只保存相对路径</div>' +
           '</div>' +
         '</div>' +
         '<div class="card-bd">' +
@@ -307,6 +332,7 @@
               '<label class="btn btn-sm" for="materialImages">' + ERP.icon('upload', 14) + '选择图片上传</label>' +
               '<input class="upload-input" id="materialImages" type="file" accept="image/jpeg,image/png" multiple>' +
               '<span class="field-hint" id="uploadHint">未选择图片</span>' +
+              '<span class="field-hint">支持 Ctrl+V 粘贴图片</span>' +
             '</div>' +
             '<div class="uploaded-grid" id="uploadedGrid"></div>' +
           '</div>' +
@@ -345,10 +371,17 @@
   var categoryPathTip = $('#categoryPathTip');
   var addChildCategoryBtn = $('#addChildCategoryBtn');
 
-  function levelSelect(level) {
-    if (level === 1) return categoryLevel1;
-    if (level === 2) return categoryLevel2;
-    return categoryLevel3;
+  /* =========================================================================
+     v1.6.0 分类「可输入下拉」组件逻辑
+     ========================================================================= */
+
+  var comboState = { openLevel: 0, activeIndex: -1 };
+
+  function levelInput(level) { return $('#categoryLevel' + level); }
+  function levelMenu(level) { return $('#categoryLevel' + level + 'Menu'); }
+  function levelCombo(level) {
+    var input = levelInput(level);
+    return input && input.closest ? input.closest('.combo') : null;
   }
 
   function hasChildren(node) {
@@ -384,6 +417,17 @@
     return path;
   }
 
+  /** 按 id 在分类树中递归查找节点 */
+  function findNodeById(nodes, id) {
+    if (!nodes) return null;
+    for (var i = 0; i < nodes.length; i += 1) {
+      if (String(nodes[i].id) === String(id)) return nodes[i];
+      var found = findNodeById(nodes[i].children || [], id);
+      if (found) return found;
+    }
+    return null;
+  }
+
   /** 某一级的候选分类：一级取根节点，二 / 三级取上一级已选节点的 children */
   function candidatesOf(level) {
     if (level === 1) return categoryTreeCache;
@@ -400,91 +444,202 @@
     }
   }
 
-  /** 生成第 level 级的 option 列表（含占位项，已选分类带 selected） */
-  function buildTreeOptions(level) {
-    var html = '<option value="">请选择' + LEVEL_LABELS[level - 1] + '级分类</option>';
-    var current = categoryChain[level - 1] || null;
-    var currentKey = current ? String(current.id) : '';
+  /** 上一级是否已填写（已选节点或输入了文本）→ 决定下一级是否可输入 */
+  function previousFilled(level) {
+    if (level === 1) return true;
+    var prev = levelInput(level - 1);
+    return Boolean(prev && String(prev.value || '').trim());
+  }
+
+  /** 输入框文本是否与已选链节点同名 */
+  function chainNodeForText(level, text) {
+    var node = categoryChain[level - 1];
+    if (node && String(node.name).trim().toLowerCase() === text.toLowerCase()) return node;
+    return null;
+  }
+
+  /** 在当前父级的候选里按名称找已有分类（不区分大小写） */
+  function candidateByName(level, text) {
+    var found = null;
     candidatesOf(level).forEach(function (node) {
-      var key = String(node.id);
-      html += '<option value="' + esc(key) + '"' + (currentKey && key === currentKey ? ' selected' : '') + '>' +
-        esc(node.name) + '</option>';
+      if (!found && String(node.name).trim().toLowerCase() === text.toLowerCase()) found = node;
     });
-    return html;
+    return found;
   }
 
-  /** 渲染第 level 级下拉：无候选时禁用并提示，否则重建 option 并回填已选值 */
-  function renderLevel(level) {
-    var select = levelSelect(level);
-    if (!select) return;
-    var candidates = candidatesOf(level);
-
-    if (!candidates.length) {
-      // 上一级没有子分类（或整棵树为空）：禁用并提示，避免误以为还能继续选
-      truncateChain(level - 1);
-      var emptyText;
-      if (level === 1) emptyText = '暂无可选分类';
-      else if (!categoryChain[level - 2]) emptyText = '请选择' + LEVEL_LABELS[level - 1] + '级分类';
-      else emptyText = '无子分类';
-      select.innerHTML = '<option value="">' + emptyText + '</option>';
-      select.disabled = true;
-      select.value = '';
-      return;
+  /** 清空 level 以下的输入值与节点链（级联联动） */
+  function clearLevelsAbove(level) {
+    for (var i = level + 1; i <= MAX_CATEGORY_LEVEL; i += 1) {
+      var input = levelInput(i);
+      if (input) input.value = '';
+      categoryChain[i - 1] = null;
     }
-
-    select.innerHTML = buildTreeOptions(level);
-    select.disabled = false;
-
-    var matched = null;
-    var selectedValue = String(select.value || '');
-    candidates.forEach(function (node) {
-      if (String(node.id) === selectedValue) matched = node;
-    });
-    if (matched) categoryChain[level - 1] = matched;
-    else truncateChain(level - 1); // 历史选中值已不在候选里（分类被删 / 移动）：清空该级与更深层级
+    truncateChain(level);
   }
 
-  function renderAllLevels() {
-    renderLevel(1);
-    renderLevel(2);
-    renderLevel(3);
-  }
-
-  /** 把某一级下拉的当前值写回已选链，返回命中的节点 */
-  function applyLevelValue(level, value) {
-    var matched = null;
-    candidatesOf(level).forEach(function (node) {
-      if (String(node.id) === String(value)) matched = node;
+  /** 下拉候选（按输入文本过滤）与空状态文案 */
+  function menuData(level) {
+    var input = levelInput(level);
+    var text = String(input ? input.value : '').trim().toLowerCase();
+    var pool = candidatesOf(level);
+    var items = pool.filter(function (node) {
+      if (!text) return true;
+      return String(node.name).toLowerCase().indexOf(text) >= 0;
     });
-    if (!matched) {
-      truncateChain(level - 1);
-      return null;
+    var emptyText = '';
+    if (!items.length) {
+      if (!pool.length) {
+        if (level === 1) {
+          emptyText = '暂无一级分类，可直接输入名称新建' + (isSuper ? '' : '（仅超级管理员可新建）');
+        } else if (!previousFilled(level)) {
+          emptyText = '请先填写' + LEVEL_LABELS[level - 2] + '级分类';
+        } else {
+          emptyText = '该分类下暂无子分类，可直接输入名称新建' + (isSuper ? '' : '（仅超级管理员可新建）');
+        }
+      } else {
+        emptyText = '没有匹配的分类，可直接输入名称' + (isSuper ? '新建' : '（仅超级管理员可新建）');
+      }
     }
-    categoryChain[level - 1] = matched;
-    truncateChain(level); // 换父级后更深层级的选择作废
-    return matched;
+    return { items: items, emptyText: emptyText };
   }
 
-  /** 一级变化 → 重建二级 / 三级 */
-  function syncLevel2() {
-    renderLevel(2);
-    renderLevel(3);
+  /** 重绘某一级的下拉面板 */
+  function paintMenu(level) {
+    var menu = levelMenu(level);
+    if (!menu) return;
+    var data = menuData(level);
+    var html;
+    if (data.items.length) {
+      html = data.items.map(function (node, index) {
+        var active = index === comboState.activeIndex;
+        return '<button type="button" class="combo-item' + (active ? ' is-active' : '') + '"' +
+          ' role="option" aria-selected="' + (active ? 'true' : 'false') + '"' +
+          ' data-combo-option="' + esc(node.id) + '">' +
+          '<span class="combo-item-name">' + esc(node.name) + '</span>' +
+          (hasChildren(node)
+            ? '<span class="combo-item-tag">' + node.children.length + ' 个子分类</span>'
+            : '') +
+        '</button>';
+      }).join('');
+    } else {
+      html = '<div class="combo-empty">' + esc(data.emptyText) + '</div>';
+    }
+    menu.innerHTML = html;
+    menu.hidden = false;
   }
 
-  /** 二级变化 → 重建三级 */
-  function syncLevel3() {
-    renderLevel(3);
+  function openMenu(level) {
+    var input = levelInput(level);
+    if (!input || input.disabled) return;
+    if (comboState.openLevel && comboState.openLevel !== level) closeMenu(comboState.openLevel);
+    comboState.openLevel = level;
+    comboState.activeIndex = -1;
+    var combo = levelCombo(level);
+    if (combo) combo.classList.add('is-open');
+    paintMenu(level);
   }
 
-  function onLevelChange(level) {
-    var select = levelSelect(level);
-    if (!select) return;
-    applyLevelValue(level, select.value);
-    categoryMissingTip = ''; // 用户已重新选择，历史分类缺失提示不再需要
-    if (level === 1) syncLevel2();
-    else if (level === 2) syncLevel3();
+  function closeMenu(level) {
+    var target = level || comboState.openLevel;
+    var menu = levelMenu(target);
+    if (menu) menu.hidden = true;
+    var combo = levelCombo(target);
+    if (combo) combo.classList.remove('is-open');
+    if (comboState.openLevel === target) {
+      comboState.openLevel = 0;
+      comboState.activeIndex = -1;
+    }
+  }
+
+  function closeAllMenus() {
+    [1, 2, 3].forEach(function (level) { closeMenu(level); });
+  }
+
+  function moveActive(level, step) {
+    var data = menuData(level);
+    if (!data.items.length) return;
+    var next = comboState.activeIndex + step;
+    if (next < 0) next = data.items.length - 1;
+    if (next >= data.items.length) next = 0;
+    comboState.activeIndex = next;
+    paintMenu(level);
+    var active = levelMenu(level) ? levelMenu(level).querySelector('.combo-item.is-active') : null;
+    if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+  }
+
+  /** 选择某个候选项：回填名称、写入节点链、清空更深层级、自动聚焦下一级 */
+  function chooseComboNode(level, node) {
+    var input = levelInput(level);
+    if (!input || !node) return;
+    input.value = node.name;
+    categoryChain[level - 1] = node;
+    categoryMissingTip = '';
+    clearLevelsAbove(level);
+    closeMenu(level);
+    refreshCombos('keep-text');
+    var next = level < MAX_CATEGORY_LEVEL ? levelInput(level + 1) : null;
+    if (next && !next.disabled) {
+      next.focus();
+      openMenu(level + 1);
+    }
+  }
+
+  /** 输入变化：同步节点链（同名则绑定）并级联清空更深层级 */
+  function onComboInput(level) {
+    var input = levelInput(level);
+    var text = String(input ? input.value : '').trim();
+    categoryMissingTip = '';
+    if (!text) {
+      categoryChain[level - 1] = null;
+    } else {
+      var matched = chainNodeForText(level, text) || candidateByName(level, text);
+      categoryChain[level - 1] = matched || null;
+    }
+    clearLevelsAbove(level);
+    refreshCombos('keep-text');
+    openMenu(level);
+  }
+
+  /**
+   * 刷新三级的可输入状态 / 占位文案 / 名称回填（不重建 DOM，避免打断输入）。
+   * preserveText = 'keep-text' 时保留用户正在输入但尚未匹配的文本。
+   */
+  function refreshCombos(preserveText) {
+    for (var level = 1; level <= MAX_CATEGORY_LEVEL; level += 1) {
+      var input = levelInput(level);
+      if (!input) continue;
+      var node = categoryChain[level - 1] || null;
+      var editable = previousFilled(level);
+      if (level > 1) {
+        input.disabled = !editable;
+      }
+      if (!editable && level > 1) {
+        input.value = '';
+        categoryChain[level - 1] = null;
+        node = null;
+      }
+      if (preserveText === 'keep-text') {
+        if (node && String(input.value || '').trim() === '') input.value = node.name;
+      } else {
+        input.value = node ? node.name : '';
+      }
+      var placeholder;
+      if (level === 1) {
+        placeholder = '选择或输入一级分类';
+      } else if (!editable) {
+        placeholder = '请先填写' + LEVEL_LABELS[level - 2] + '级分类';
+      } else {
+        placeholder = '选择或输入' + LEVEL_LABELS[level - 1] + '级分类';
+      }
+      input.placeholder = placeholder;
+      var combo = levelCombo(level);
+      if (combo) combo.classList.toggle('is-disabled', Boolean(input.disabled));
+    }
+    if (comboState.openLevel) paintMenu(comboState.openLevel);
     updateCategoryHint();
   }
+
+  function renderAllLevels() { refreshCombos(); }
 
   /** 最深一级已选分类：叶子或第 3 级时它就是最终分类 */
   function deepestSelected() {
@@ -521,18 +676,17 @@
     }
     if (categoryHint) {
       if (!deepest) {
-        categoryHint.textContent = '按一 / 二 / 三级依次选择，选到最末一级分类即可保存';
+        categoryHint.textContent = '可下拉选择已有分类，也可直接输入分类名称；选到最末一级分类即可保存';
       } else if (!categoryComplete()) {
-        categoryHint.textContent = '「' + deepest.node.name + '」下还有子分类，请继续选择到最末一级';
+        categoryHint.textContent = '「' + deepest.node.name + '」下还有子分类，请继续选择或在下一级输入名称';
       } else {
         categoryHint.textContent = '当前分类：' + categoryPathText();
       }
     }
-    // 选到末级后自动去掉校验高亮
     if (categoryComplete() && categoryField) categoryField.classList.remove('is-invalid');
   }
 
-  /** 编辑模式：按 editing.categoryId 自底向上找路径并逐级预选 */
+  /** 编辑模式：按 editing.categoryId 自底向上找路径并逐级预填 */
   function applyEditingCategory() {
     categoryChain = [];
     categoryMissingTip = '';
@@ -542,9 +696,8 @@
 
     var path = resolvePath(raw);
     if (!path.length) {
-      // 历史分类可能已被删除或移出分类树：提示并允许重新选择
       categoryMissingTip = '原有分类「' + (editing.categoryName || raw) +
-        '」已不在分类树中，请重新选择分类后再保存';
+        '」已不在分类树中，请重新选择或输入分类后再保存';
       return;
     }
     if (path.length > MAX_CATEGORY_LEVEL) {
@@ -554,12 +707,12 @@
     setCategoryChain(path.slice(0, MAX_CATEGORY_LEVEL));
   }
 
-  /** 渲染级联：刷新分类树 → 编辑回填 → 逐级渲染 → 更新提示 */
+  /** 渲染级联：刷新分类树 → 编辑回填 → 刷新三级控件 → 更新提示 */
   function renderCategoryCascade() {
     categoryTreeCache = ERP.store.categoryTree();
     applyEditingCategory();
-    renderAllLevels();
-    updateCategoryHint();
+    refreshCombos();
+    closeAllMenus();
   }
 
   /** 超管：在当前选中分类下新建子分类（未选分类则新建一级分类） */
@@ -596,21 +749,91 @@
         ERP.ui.toast(result.error || '新建分类失败', 'error');
         return;
       }
-      // addCategory 内部已刷新缓存：重建分类树，并自动选中新建的分类
       categoryTreeCache = ERP.store.categoryTree();
       setCategoryChain(resolvePath(result.category.id));
       categoryMissingTip = '';
-      renderAllLevels();
-      updateCategoryHint();
+      refreshCombos();
       ERP.ui.toast('分类「' + result.category.name + '」已创建', 'ok');
     });
   }
 
+  /* ---------------- 三级可输入下拉：事件绑定 ---------------- */
+
   [1, 2, 3].forEach(function (level) {
-    var select = levelSelect(level);
-    if (select) {
-      select.addEventListener('change', function () { onLevelChange(level); });
+    var input = levelInput(level);
+    var menu = levelMenu(level);
+    var combo = levelCombo(level);
+    if (!input) return;
+
+    input.addEventListener('focus', function () { openMenu(level); });
+    input.addEventListener('click', function () { openMenu(level); });
+    input.addEventListener('input', function () { onComboInput(level); });
+    input.addEventListener('keydown', function (event) {
+      var menuEl = levelMenu(level);
+      var menuOpen = comboState.openLevel === level && menuEl && !menuEl.hidden;
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        if (!menuOpen) openMenu(level); else moveActive(level, 1);
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (menuOpen) moveActive(level, -1);
+        return;
+      }
+      if (event.key === 'Escape') {
+        if (menuOpen) {
+          event.preventDefault();
+          closeMenu(level);
+        }
+        return;
+      }
+      if (event.key === 'Enter' && menuOpen) {
+        var data = menuData(level);
+        if (data.items.length) {
+          event.preventDefault();
+          var index = comboState.activeIndex >= 0 ? comboState.activeIndex : 0;
+          chooseComboNode(level, data.items[index]);
+        }
+      }
+    });
+    input.addEventListener('blur', function () {
+      // 延迟关闭：让面板上的 mousedown/click 先拿到事件
+      window.setTimeout(function () { closeMenu(level); }, 140);
+    });
+
+    if (combo) {
+      var toggle = combo.querySelector('.combo-toggle');
+      if (toggle) {
+        toggle.addEventListener('mousedown', function (event) { event.preventDefault(); });
+        toggle.addEventListener('click', function (event) {
+          event.preventDefault();
+          if (input.disabled) return;
+          if (comboState.openLevel === level) {
+            closeMenu(level);
+          } else {
+            input.focus();
+            openMenu(level);
+          }
+        });
+      }
     }
+
+    if (menu) {
+      menu.addEventListener('mousedown', function (event) { event.preventDefault(); });
+      menu.addEventListener('click', function (event) {
+        var item = event.target.closest('[data-combo-option]');
+        if (!item) return;
+        var node = findNodeById(categoryTreeCache, item.getAttribute('data-combo-option'));
+        if (node) chooseComboNode(level, node);
+      });
+    }
+  });
+
+  // 点击组件外部时收起所有下拉面板
+  document.addEventListener('mousedown', function (event) {
+    if (event.target.closest && event.target.closest('.combo')) return;
+    closeAllMenus();
   });
 
   if (addChildCategoryBtn) addChildCategoryBtn.addEventListener('click', addChildCategory);
@@ -689,34 +912,133 @@
     if (uploadHint) uploadHint.textContent = '已上传 ' + state.images.length + ' / 5 张';
   }
 
-  uploadInput.addEventListener('change', async function () {
-    var files = Array.prototype.slice.call(uploadInput.files || []);
-    uploadInput.value = '';
-    if (!files.length) return;
-    var allowed = { 'image/jpeg': true, 'image/png': true };
-    for (var i = 0; i < files.length; i += 1) {
-      var file = files[i];
-      if (state.images.length >= 5) {
+  // 上传校验规则集中定义：选择图片与 Ctrl+V 粘贴两条入口共用，避免规则漂移
+  var ALLOWED_IMAGE_TYPES = { 'image/jpeg': true, 'image/png': true };
+  var MAX_IMAGE_COUNT = 5;
+  var MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+  /**
+   * 多图入库的唯一入口：file input 的 change 与 document 的 paste 都调用它。
+   * 沿用既有的校验顺序与提示文案（上限 / 格式 / 单张大小），复用同一个
+   * ERP.api.upload('/uploads') 接口，成功后 push 进 state.images 并刷新预览；
+   * 保存时仍写入 materials.image 的逗号分隔相对路径，数据库字段不变。
+   * @param {FileList|File[]} files 待上传文件（空则直接返回）
+   * @param {{source: string}} [options] source 为 'paste' 时上传成功额外给出粘贴提示
+   * @returns {Promise<{uploaded: number}>} uploaded 为本次成功上传的张数
+   */
+  async function addImageFiles(files, options) {
+    var list = Array.prototype.slice.call(files || []);
+    if (!list.length) return { uploaded: 0 };
+    var source = (options && options.source) || 'pick';
+    var uploaded = 0;
+    for (var i = 0; i < list.length; i += 1) {
+      var file = list[i];
+      if (state.images.length >= MAX_IMAGE_COUNT) {
         ERP.ui.toast('每个物料最多上传 5 张图片', 'warn');
         break;
       }
-      if (!allowed[file.type]) {
+      if (!ALLOWED_IMAGE_TYPES[file.type]) {
         ERP.ui.toast('仅支持 jpg / png 格式图片', 'error');
         continue;
       }
-      if (file.size > 5 * 1024 * 1024) {
+      if (file.size > MAX_IMAGE_BYTES) {
         ERP.ui.toast('单张图片不能超过 5MB', 'error');
         continue;
       }
-      if (uploadHint) uploadHint.textContent = '正在上传 ' + (i + 1) + ' / ' + files.length + ' …';
+      if (uploadHint) uploadHint.textContent = '正在上传 ' + (i + 1) + ' / ' + list.length + ' …';
       try {
         var result = await ERP.api.upload('/uploads', file);
         state.images.push(result.url);
+        uploaded += 1;
       } catch (error) {
+        // 失败沿用后端返回的文案
         ERP.ui.toast(error.message || '图片上传失败', 'error');
       }
     }
     renderUploadedImages();
+    if (uploaded && source === 'paste') {
+      ERP.ui.toast('已粘贴上传 ' + uploaded + ' 张图片', 'ok');
+    }
+    return { uploaded: uploaded };
+  }
+
+  uploadInput.addEventListener('change', async function () {
+    var files = Array.prototype.slice.call(uploadInput.files || []);
+    uploadInput.value = '';
+    await addImageFiles(files);
+  });
+
+  /* ---------------- Ctrl+V 粘贴上传（与「选择图片上传」共用校验 / 接口 / state.images） ---------------- */
+
+  /**
+   * 判断事件目标是否位于可编辑控件内（备注 textarea、名称 / 型号等 input、contenteditable）。
+   * 这些位置必须保留浏览器默认的文本粘贴行为，一律不拦截、不 preventDefault。
+   * 例外：input[type=file]（隐藏的图片选择框）不承载文本，不算可编辑，
+   * 否则刚用「选择图片上传」选完图、焦点还停在它上面时 Ctrl+V 会失效。
+   */
+  function isEditableTarget(target) {
+    if (!target || target.nodeType !== 1) return false;
+    var node = target;
+    while (node && node.nodeType === 1) {
+      var tag = String(node.tagName || '').toLowerCase();
+      if (tag === 'textarea' || tag === 'select') return true;
+      if (tag === 'input' && String(node.type || '').toLowerCase() !== 'file') return true;
+      if (node.isContentEditable) return true;
+      // 兼容 jsdom / 旧环境：直接看 contenteditable 属性（含嵌套在内部的情况）
+      var editable = node.getAttribute ? node.getAttribute('contenteditable') : null;
+      if (editable !== null && editable !== undefined &&
+          String(editable).toLowerCase() !== 'false') {
+        return true;
+      }
+      node = node.parentNode;
+    }
+    return false;
+  }
+
+  /** 从剪贴板里挑出图片文件；没有图片就返回空数组（纯文本粘贴由此静默走默认行为） */
+  function clipboardImageFiles(event) {
+    var clipboard = event.clipboardData || window.clipboardData;
+    if (!clipboard) return [];
+    var files = [];
+    var items = clipboard.items;
+    if (items && items.length) {
+      for (var i = 0; i < items.length; i += 1) {
+        var item = items[i];
+        if (!item || item.kind !== 'file') continue;
+        if (String(item.type || '').indexOf('image/') !== 0) continue;
+        var file = typeof item.getAsFile === 'function' ? item.getAsFile() : null;
+        if (file) files.push(file);
+      }
+      return files;
+    }
+    // 兜底：部分浏览器（截图粘贴）只填 files 不填 items
+    var raw = clipboard.files;
+    if (raw && raw.length) {
+      for (var j = 0; j < raw.length; j += 1) {
+        if (raw[j] && String(raw[j].type || '').indexOf('image/') === 0) files.push(raw[j]);
+      }
+    }
+    return files;
+  }
+
+  /** 本页的粘贴监听：剪贴板里有图片才接管，纯文本 / 非图片一律不打扰 */
+  async function handleDocumentPaste(event) {
+    // 正在输入框 / 备注框里打字时不处理（尤其是 textarea 的普通文本粘贴）
+    if (isEditableTarget(event.target)) return;
+    var files = clipboardImageFiles(event);
+    if (!files.length) return; // 没有图片文件：静默忽略，不提示
+    // 剪贴板里确实有图片，阻止默认行为，避免图片被粘贴到页面其它位置
+    if (typeof event.preventDefault === 'function') event.preventDefault();
+    if (state.images.length >= MAX_IMAGE_COUNT) {
+      ERP.ui.toast('每个物料最多上传 5 张图片', 'warn');
+      return;
+    }
+    // 复用选择图片时的同一套校验 / 上传 / 预览逻辑
+    await addImageFiles(files, { source: 'paste' });
+  }
+
+  document.addEventListener('paste', function (event) {
+    handleDocumentPaste(event);
   });
 
   uploadedGrid.addEventListener('click', function (event) {
@@ -748,28 +1070,76 @@
    * 解析分类：直接读取三级级联的最终选中值（最深一级已选中的分类 id）。
    * 原「按输入名称查找 / 自动新建分类」的逻辑已删除，改由级联选择器 + 「新建子分类」按钮承担。
    */
+  /**
+   * v1.6.0：提交时解析分类（支持「可输入下拉」+ 自动创建缺失分类）：
+   *   1) 逐级读取输入框文本（一 → 二 → 三，遇到空即停止）；
+   *   2) 优先使用已绑定的同名节点，其次在当前父级的子分类里按名称匹配；
+   *   3) 仍不存在：超级管理员调用 ERP.store.addCategory(name, 父级id|null) 自动创建
+   *      （即 POST /api/categories），普通管理员直接返回「不存在」提示；
+   *   4) 校验：必须有分类、最深分类必须是末级（叶子或第 3 级）。
+   * 自动创建只发生在提交时，打字过程不调接口。
+   */
   async function resolveCategoryId() {
     // 分类缓存为空（例如数据还没加载完）时补一次加载，再按空树提示
     if (!ERP.store.categories().length) {
       try { await ERP.store.load(); } catch (error) { /* 忽略：下面按空树提示 */ }
       categoryTreeCache = ERP.store.categoryTree();
-      renderAllLevels();
-      updateCategoryHint();
+      refreshCombos();
     }
-    if (!categoryTreeCache.length) {
-      markInvalid(categoryLevel1, '请选择物料分类');
-      return { error: '暂无可选分类，请联系超级管理员创建分类' };
+
+    var parent = null;
+    var resolved = null;
+
+    for (var level = 1; level <= MAX_CATEGORY_LEVEL; level += 1) {
+      var input = levelInput(level);
+      var text = String(input ? input.value : '').trim();
+      if (!text) break;
+
+      var node = chainNodeForText(level, text) || candidateByName(level, text);
+
+      if (!node) {
+        if (!isSuper) {
+          markInvalid(input, '分类不存在');
+          return { error: '分类「' + text + '」不存在，仅超级管理员可新建分类' };
+        }
+        var result;
+        try {
+          result = await ERP.store.addCategory(text, parent ? parent.id : null);
+        } catch (error) {
+          result = { ok: false, error: error.message };
+        }
+        if (!result || !result.ok) {
+          markInvalid(input, (result && result.error) || '新建分类失败');
+          return { error: (result && result.error) || '新建分类失败' };
+        }
+        categoryTreeCache = ERP.store.categoryTree();
+        node = findNodeById(categoryTreeCache, result.category.id);
+        if (!node) {
+          return { error: '分类创建后读取失败，请刷新页面后重试' };
+        }
+      }
+
+      categoryChain[level - 1] = node;
+      truncateChain(level);
+      parent = node;
+      resolved = node;
     }
-    var deepest = deepestSelected();
-    if (!deepest) {
-      markInvalid(categoryLevel1, '请选择物料分类');
+
+    if (!resolved) {
+      markInvalid(levelInput(1), '请选择物料分类');
       return { error: '请选择物料分类' };
     }
+
+    var deepest = deepestSelected();
     if (!categoryComplete()) {
-      markInvalid(levelSelect(deepest.level), '请选择完整的分类');
+      markInvalid(levelInput(deepest.level), '请选择完整的分类');
       return { error: '请选择完整的分类' };
     }
-    return { id: deepest.node.id, name: deepest.node.name };
+
+    // 把解析结果回填到控件（自动新建的分类名称可能与输入的大小写不同）
+    refreshCombos();
+    updateCategoryHint();
+    return { id: resolved.id, name: resolved.name };
   }
 
   function collectPayload(resolvedCategoryId) {
@@ -821,6 +1191,7 @@
       id: editing ? editing.id : undefined,
       name: name,
       model: model,
+      jlcNo: String($('#materialJlcNo').value || '').trim(),
       package: String($('#materialPackage').value || '').trim(),
       brand: String($('#materialBrand').value || '').trim(),
       categoryId: resolvedCategoryId,

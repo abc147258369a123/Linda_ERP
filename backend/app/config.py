@@ -1,4 +1,4 @@
-"""应用配置：全部从环境变量读取（Docker env_file / docker-compose）。"""
+﻿"""应用配置：全部从环境变量读取（Docker env_file / docker-compose）。"""
 from __future__ import annotations
 
 import os
@@ -26,7 +26,7 @@ def _env_list(name: str, default: str = "") -> List[str]:
 @dataclass(frozen=True)
 class Settings:
     app_name: str = "Linda_ERP"
-    app_version: str = _env("APP_VERSION", "1.4.0")
+    app_version: str = _env("APP_VERSION", "1.7.0")
     app_env: str = _env("APP_ENV", "production")
     app_host: str = _env("APP_HOST", "127.0.0.1")
     app_port: int = _env_int("APP_PORT", 8000)
@@ -59,3 +59,5 @@ if settings.app_env == "production":
         raise RuntimeError("生产模式必须设置安全的 JWT_SECRET（请参考 .env.example）")
     if not settings.db_password or settings.db_password.startswith("change_me"):
         raise RuntimeError("生产模式必须设置安全的 DB_PASSWORD（请参考 .env.example）")
+
+

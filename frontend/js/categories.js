@@ -1,10 +1,17 @@
 /**
- * 分类管理页（v1.3.0：树形多级分类）
+ * 分类管理页（v1.3.0：树形多级分类；v1.5.0：选中末级分类加载物料列表；
+ * v1.6.0：分类树头部「新建分类」按钮，按选中态决定建一级还是建子分类）
  * - 按 ERP.store.categoryTree() 递归渲染分类树，默认全部展开，可逐级折叠
  * - 每一级行右侧展示「物料总数」（total_count = 自身 + 所有后代分类的物料数）
  * - 超级管理员：新增一级分类 / 重命名 / 右键菜单（新建子分类、删除当前分类）
  * - 删除前本地校验：有子分类 → 请先删除子分类；分类下有物料 → 弹窗告知数量并禁止删除
  * - 非超级管理员：仅查看分类树，不出现任何写操作入口
+ * - v1.5.0：点击分类名称选中该分类（Ctrl / Cmd + 点击仍在新窗口打开物料总览）；
+ *   选中的是末级分类时，在分类表格下方加载该分类的物料列表（ERP.materialList，
+ *   列 / 字段 / 操作与物料总览一致，带分页）；非末级分类只提示选择末级分类。
+ * - v1.6.0：分类树卡片头部「新建分类」（仅超级管理员）：未选中分类 → 新建一级分类；
+ *   已选中分类 → 在该分类下新建子分类。成功后刷新分类树、展开全部祖先并自动选中
+ *   新建的分类（末级分类会在下方带出物料列表）。
  */
 (async function () {
   'use strict';
@@ -18,6 +25,13 @@
   var view = ERP.layout.mount({ active: 'categories', title: '分类管理' });
   if (!view) return;
   var page = view.content;
+
+  // v1.5.0：选中态。selectedCategoryId 为当前选中分类（null 表示未选中）；
+  // materialPage 记忆下方物料列表的页码，只在新选中分类时重置为 1
+  var state = {
+    selectedCategoryId: null,
+    materialPage: 1
+  };
 
   await ERP.store.load();
 
@@ -69,12 +83,22 @@
       '<div class="card-hd">' +
         '<div>' +
           '<div class="card-title">分类树</div>' +
-          '<div class="card-sub">点击分类名称查看该分类下的物料；点击左侧箭头展开 / 收起子分类</div>' +
+          '<div class="card-sub">点击末级分类名称，在下方查看该分类的物料；点击左侧箭头展开 / 收起子分类' +
+            (isSuper ? '；未选中分类时新建一级分类，选中分类后新建其子分类' : '') + '</div>' +
         '</div>' +
-        '<div class="legend">' +
-          '<span class="tag tag-warn">低库存</span>' +
-          '<span class="tag tag-empty">空缺</span>' +
-          '<span class="tag tag-brand">子分类</span>' +
+        // v1.6.0：右侧「新建分类」按钮（仅超级管理员渲染），与图例同一行
+        '<div class="cat-tree-hd-side" ' +
+          'style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end;">' +
+          '<div class="legend">' +
+            '<span class="tag tag-warn">低库存</span>' +
+            '<span class="tag tag-empty">空缺</span>' +
+            '<span class="tag tag-brand">子分类</span>' +
+          '</div>' +
+          (isSuper
+            ? '<button class="btn btn-sm btn-primary" type="button" id="addCategoryTreeBtn" ' +
+                'title="当前未选中分类，将新建一级分类">' +
+                ERP.icon('plus', 14) + '新建分类</button>'
+            : '') +
         '</div>' +
       '</div>' +
       '<div class="table-wrap">' +
@@ -98,9 +122,14 @@
             : '分类树由管理员维护，删除前需先清空子分类与物料档案') +
         '</span>' +
       '</div>' +
-    '</div>';
+    '</div>' +
+
+    // v1.5.0：选中末级分类后，在此加载该分类的物料列表（由 ERP.materialList 渲染）
+    '<div id="catMaterialSection" class="section-gap"></div>';
 
   var tbody = $('#catBody');
+  // v1.6.0：分类树卡片头部的「新建分类」按钮（非超级管理员时不存在该节点）
+  var treeAddBtn = $('#addCategoryTreeBtn');
 
   // 折叠状态只存内存，刷新页面后恢复「全部展开」
   var collapsed = {};
@@ -119,6 +148,144 @@
 
   function categoryHref(categoryId) {
     return ERP.url('index.html?categoryId=' + encodeURIComponent(categoryId));
+  }
+
+  /* ---------------- 选中分类 + 下方物料列表（v1.5.0） ---------------- */
+
+  var materialSection = $('#catMaterialSection');
+
+  /** 在分类树里递归查找节点（找不到返回 null） */
+  function findNode(nodes, categoryId) {
+    var found = null;
+    nodes.forEach(function (node) {
+      if (found) return;
+      if (String(node.id) === String(categoryId)) {
+        found = node;
+        return;
+      }
+      found = findNode(node.children || [], categoryId);
+    });
+    return found;
+  }
+
+  /** 末级分类判定：没有子分类（以 categoryTree() 为准，兼容 hasChildren 与扁平 parentId） */
+  function isLeafCategory(categoryId) {
+    var node = findNode(ERP.store.categoryTree(), categoryId);
+    return node ? !(node.children && node.children.length) : false;
+  }
+
+  /** 该分类下的物料：按 updatedAt 倒序（最近更新的排在前面） */
+  function materialsOfCategory(categoryId) {
+    return ERP.store.materials().filter(function (material) {
+      return String(material.categoryId) === String(categoryId);
+    }).sort(function (a, b) {
+      return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
+    });
+  }
+
+  /** 选中的分类已被删除（或数据刷新后不存在）时清除选中，避免下方列表残留 */
+  function syncSelection() {
+    if (state.selectedCategoryId === null) return;
+    if (findCategory(state.selectedCategoryId)) return;
+    state.selectedCategoryId = null;
+    state.materialPage = 1;
+  }
+
+  /** 选中分类：切换分类时下方物料列表重置到第 1 页 */
+  function selectCategory(categoryId) {
+    var changed = state.selectedCategoryId === null ||
+      String(state.selectedCategoryId) !== String(categoryId);
+    state.selectedCategoryId = categoryId;
+    if (changed) state.materialPage = 1;
+    render();
+  }
+
+  /**
+   * v1.6.0：把某分类的所有祖先逐级展开（只改折叠状态，不动选中态），
+   * 保证新建 / 选中的节点在分类树里立即可见。基于扁平缓存的 parentId 向上回溯。
+   */
+  function expandAncestors(categoryId) {
+    var byId = {};
+    ERP.store.categories().forEach(function (category) {
+      byId[String(category.id)] = category;
+    });
+    var current = byId[String(categoryId)];
+    var guard = 0;
+    while (current && guard < 32) {
+      var parentId = current.parentId;
+      if (parentId === null || parentId === undefined || String(parentId) === '') break;
+      collapsed[keyOf(parentId)] = false;
+      var parent = byId[String(parentId)];
+      if (!parent || parent === current) break;
+      current = parent;
+      guard += 1;
+    }
+  }
+
+  /** 渲染分类表格下方的「物料列表」区块：末级分类出列表，非末级只给提示 */
+  function renderMaterialSection() {
+    if (!materialSection) return;
+
+    var selectedId = state.selectedCategoryId;
+    var category = selectedId === null ? null : findCategory(selectedId);
+    if (!category) {
+      materialSection.hidden = true;
+      materialSection.innerHTML = '';
+      return;
+    }
+
+    materialSection.hidden = false;
+    var path = ERP.store.categoryPath(selectedId) || category.name;
+
+    // 非末级分类：不加载物料，提示先选择末级分类
+    if (!isLeafCategory(selectedId)) {
+      materialSection.innerHTML =
+        '<div class="card cat-material-card">' +
+          '<div class="cat-material-head">' +
+            '<div class="cat-material-head-main">' +
+              '<div class="cat-material-title">分类物料 · ' + esc(path) + '</div>' +
+              '<div class="cat-material-sub">该分类下还有子分类，不直接挂物料</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="empty">' +
+            ERP.icon('tag', 40) +
+            '<div class="empty-title">该分类包含子分类，请选择末级分类查看物料</div>' +
+            '<div class="empty-desc">点击左侧箭头展开子分类，再点击没有子分类的分类名称，即可在下方查看该分类的物料列表。</div>' +
+          '</div>' +
+        '</div>';
+      return;
+    }
+
+    if (!ERP.materialList || typeof ERP.materialList.render !== 'function') {
+      materialSection.innerHTML =
+        '<div class="card cat-material-card">' +
+          '<div class="empty">' +
+            '<div class="empty-title">物料列表组件未加载</div>' +
+            '<div class="empty-desc">请检查 material-list.js 是否已在分类管理页正确引入。</div>' +
+          '</div>' +
+        '</div>';
+      return;
+    }
+
+    // 物料列表组件按容器独立渲染：切换分类时传入新数据并重置到第 1 页
+    var host = document.createElement('div');
+    host.className = 'cat-material-host';
+    materialSection.innerHTML = '';
+    materialSection.appendChild(host);
+
+    var info = ERP.materialList.render(host, {
+      materials: materialsOfCategory(selectedId),
+      categoryName: path,
+      categoryId: selectedId,
+      pageSize: 12,
+      page: state.materialPage,
+      onPageChange: function (page) {
+        // 组件内部已重绘，这里只记住页码，下次重新渲染时保持在同一页
+        state.materialPage = page;
+      }
+    });
+    // 数据变少导致页码收敛时，把记忆的页码同步到真实页码
+    if (info) state.materialPage = info.page;
   }
 
   /** 按折叠状态把树展开成待渲染的行数组 */
@@ -152,8 +319,12 @@
     var isOpen = hasChildren && !collapsed[key];
     var level = node.level || 1;
     var indent = 12 * (level - 1);
+    // v1.5.0：当前选中的分类行高亮（样式见 category-materials.css）
+    var isSelected = state.selectedCategoryId !== null &&
+      String(state.selectedCategoryId) === String(node.id);
 
-    return '<tr class="cat-row' + (level > 1 ? ' is-child' : '') + '"' +
+    return '<tr class="cat-row' + (level > 1 ? ' is-child' : '') +
+        (isSelected ? ' is-selected' : '') + '"' +
         ' data-cat-row="' + esc(node.id) + '"' +
         ' data-level="' + level + '"' +
         ' data-cat-name="' + esc(node.name) + '">' +
@@ -169,7 +340,10 @@
               '</button>'
             : '<span class="cat-toggle-spacer" aria-hidden="true"></span>') +
           '<a class="cat-name-link" href="' + esc(categoryHref(node.id)) + '" ' +
-            'title="在物料总览中查看该分类的物料">' + esc(node.name) + '</a>' +
+            'title="' + (hasChildren
+              ? '选中该分类；点击左侧箭头展开 / 收起子分类'
+              : '在下方查看该分类的物料；Ctrl / ⌘ + 点击可在物料总览中打开') + '">' +
+            esc(node.name) + '</a>' +
           countBadgeHtml(node) +
         '</div>' +
       '</td>' +
@@ -207,8 +381,26 @@
     '</tr>';
   }
 
+  /**
+   * v1.6.0：同步分类树「新建分类」按钮的 title / aria-label，
+   * 鼠标悬停即可看出点击后是建一级分类还是建某分类的子分类。
+   */
+  function syncTreeAddButton() {
+    if (!treeAddBtn) return;
+    var category = state.selectedCategoryId === null ? null : findCategory(state.selectedCategoryId);
+    var tip = category
+      ? '在「' + category.name + '」下新建子分类'
+      : '当前未选中分类，将新建一级分类';
+    treeAddBtn.title = tip;
+    treeAddBtn.setAttribute('aria-label', tip);
+  }
+
   function render() {
     closeContextMenu();
+    // 分类被删除 / 数据刷新后，先校正选中态（保留仍存在的选中项）
+    syncSelection();
+    // v1.6.0：选中态变化后刷新「新建分类」按钮的提示文案
+    syncTreeAddButton();
 
     var categories = ERP.store.categories();
     var roots = ERP.store.categoryTree();
@@ -248,6 +440,9 @@
         roots.length + ' 个一级分类 · ' + used + ' 个已使用 · ' +
         (categories.length - used) + ' 个空分类 · 最深 ' + treeDepth(roots) + ' 级';
     }
+
+    // 分类树重绘后同步刷新下方物料列表（保留当前选中项与页码）
+    renderMaterialSection();
   }
 
   /* ---------------- 右键菜单（仅超级管理员） ---------------- */
@@ -397,6 +592,61 @@
     });
   }
 
+  /**
+   * v1.6.0：分类树卡片头部的「新建分类」，按当前选中态决定创建层级：
+   * - 未选中分类（或选中分类已被删除）→ 新建一级分类（parentId = null）
+   * - 已选中分类 → 在该分类下新建子分类（parentId = 选中分类 id）
+   * 成功后刷新分类树、展开全部祖先并自动选中新建的分类；
+   * 新分类是末级分类时，下方物料列表随之刷新（空分类给出空列表提示）。
+   */
+  function addCategoryFromTree() {
+    if (!isSuper) {
+      ERP.ui.toast('仅超级管理员可新增分类', 'warn');
+      return;
+    }
+
+    // 选中分类可能已被删除：先校正选中态，自动回退为「新建一级分类」
+    syncSelection();
+    var parent = state.selectedCategoryId === null ? null : findCategory(state.selectedCategoryId);
+    if (!parent) {
+      state.selectedCategoryId = null;
+      state.materialPage = 1;
+    }
+
+    ERP.ui.prompt({
+      title: parent ? '新建子分类' : '新建一级分类',
+      label: '分类名称',
+      placeholder: parent ? '如：0603' : '如：电容',
+      hint: parent ? '将添加到「' + parent.name + '」下' : '未选中分类时创建一级分类',
+      okText: parent ? '创建子分类' : '创建分类'
+    }).then(async function (value) {
+      if (value === null) return; // 取消：不提交请求
+      var name = String(value || '').trim();
+      if (!name) {
+        ERP.ui.toast('分类名称不能为空', 'warn');
+        return;
+      }
+
+      var result = await ERP.store.addCategory(name, parent ? parent.id : null);
+      if (!result.ok) {
+        // 后端文案（如同父级重名 409）直接提示
+        ERP.ui.toast(result.error || '新增分类失败', 'error');
+        return;
+      }
+
+      var created = result.category || null;
+      ERP.ui.toast('分类「' + (created && created.name ? created.name : name) + '」已创建', 'ok');
+      if (!created || created.id === null || created.id === undefined) {
+        // 极端情况：后端未返回分类对象，只刷新树，不做自动选中
+        render();
+        return;
+      }
+      // 展开新分类的所有祖先，再自动选中它（selectCategory 内部会 render 并刷新下方物料列表）
+      expandAncestors(created.id);
+      selectCategory(created.id);
+    });
+  }
+
   function renameCategory(id) {
     if (!isSuper) {
       ERP.ui.toast('仅超级管理员可重命名分类', 'warn');
@@ -486,13 +736,32 @@
   /* ---------------- 事件绑定 ---------------- */
 
   page.addEventListener('click', function (event) {
+    // v1.6.0：分类树卡片头部「新建分类」→ 按选中态决定建一级分类还是子分类
+    if (event.target.closest('#addCategoryTreeBtn')) {
+      addCategoryFromTree();
+      return;
+    }
+
     if (event.target.closest('#addCategoryBtn')) {
       addRootCategory();
       return;
     }
 
+    // v1.5.0：点击分类名称 → 选中该分类，末级分类在下方加载物料列表；
+    // 按住 Ctrl / Cmd / Shift 时保留默认行为（在新窗口打开物料总览）
+    var nameLink = event.target.closest('.cat-name-link');
+    if (nameLink) {
+      if (event.ctrlKey || event.metaKey || event.shiftKey) return;
+      event.preventDefault();
+      var nameRow = nameLink.closest('[data-cat-row]');
+      if (!nameRow) return;
+      selectCategory(nameRow.getAttribute('data-cat-row'));
+      return;
+    }
+
     var toggleBtn = event.target.closest('[data-toggle-cat]');
     if (toggleBtn) {
+      // 展开 / 收起只折叠，不改变选中态
       var toggleKey = keyOf(toggleBtn.getAttribute('data-toggle-cat'));
       collapsed[toggleKey] = !collapsed[toggleKey];
       render();
@@ -514,6 +783,12 @@
     event.preventDefault();
     openContextMenu(event, category, row);
   });
+
+  // 物料列表里的「领用」会加入物料使用车，这里挂载悬浮使用车面板
+  // （categories.html 已引入 cart.js；未引入时静默跳过）
+  if (window.ERP && ERP.cart && typeof ERP.cart.mountPanel === 'function') {
+    ERP.cart.mountPanel();
+  }
 
   render();
 

@@ -302,6 +302,7 @@
           statsHtml +
           '<dl class="detail-list">' +
             '<div class="detail-item"><dt>料号 / 型号</dt><dd class="mono">' + esc(material.model || '—') + '</dd></div>' +
+            '<div class="detail-item"><dt>嘉立创编号</dt><dd class="mono">' + esc(material.jlcNo || '') + '</dd></div>' +
             '<div class="detail-item"><dt>封装</dt><dd>' + esc(material.package || '—') + '</dd></div>' +
             '<div class="detail-item"><dt>品牌</dt><dd>' + esc(material.brand || '—') + '</dd></div>' +
             '<div class="detail-item"><dt>物料分类</dt><dd>' + esc(category || '—') + '</dd></div>' +

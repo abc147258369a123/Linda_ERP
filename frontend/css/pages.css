@@ -261,7 +261,7 @@
 .detail-list { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; margin: 0; }
 .detail-list .detail-item { min-width: 0; }
 .detail-list .is-full { grid-column: 1 / -1; }
-.detail-list dt { margin: 0 0 2px; font-size: 11.5px; color: #7d8a95; }
+.detail-list dt { margin: 0 0 3px; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
 .detail-list dd { margin: 0; font-size: 13px; line-height: 1.55; color: var(--text); word-break: break-word; }
 .detail-list dd.mono { font-family: var(--mono); font-size: 12.5px; }
 
@@ -868,14 +868,14 @@
 .detail-media-card .detail-side-block:first-of-type { padding-top: 0; border-top: 0; }
 .detail-side-title {
   display: block;
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 600;
   letter-spacing: .3px;
-  color: #5d6a75;
+  color: var(--text-2);
 }
 .detail-side-list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 0; }
 .detail-side-list > div { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.detail-side-list dt { flex: none; margin: 0; font-size: 11.5px; color: #7d8a95; }
+.detail-side-list dt { flex: none; margin: 0; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
 .detail-side-list dd { margin: 0; font-size: 12.5px; color: var(--text); text-align: right; word-break: break-word; }
 .detail-side-list dd.mono { font-family: var(--mono); font-size: 12px; }
 .detail-side-text { margin: 6px 0 0; font-size: 12.5px; line-height: 1.65; color: var(--text-2); word-break: break-word; }
@@ -1253,3 +1253,20 @@ select.select option {
 /* 库存预警：整行可点击进入物料详情 */
 .alert-row { cursor: pointer; }
 .alert-row:hover td { background: var(--block-sky); }
+
+/* =========================================================================
+   v1.7.0 全局可读性增强
+   - 正文 / 次级文字加深
+   - 属性标题统一放大，区分标题与内容
+   ========================================================================= */
+.mat-model { color: var(--text-2); }
+.mat-sub { color: var(--text-3); }
+.cell-loc .loc-sub { color: var(--text-3); }
+.stat-sub { color: var(--text-2); }
+.detail-media-meta { color: var(--text-2); }
+.detail-recent-sub { color: var(--text-2); }
+.detail-side-text { color: var(--text-2); }
+.page-desc { color: var(--text-2); }
+.field-hint { color: var(--text-2); }
+.stat-label { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.mat-sub, .cell-loc .loc-sub { font-size: 12px; }

@@ -1,0 +1,79 @@
+/* =========================================================================
+   分类管理 · 分类物料列表（v1.5.0）
+   说明：只新增「分类行选中高亮」与「物料列表区块标题行 + 容器间距」两类样式，
+        表格 / 分页 / 列表底部等一律复用 pages.css 与 base.css 的
+        .table / .pager / .list-foot，不重定义已有表格样式，
+        保证下方物料列表与「物料总览」视觉一致。
+   依赖：base.css 的 :root 变量（--brand / --brand-weak / --border 等）
+   ========================================================================= */
+
+/* ---------- 分类行选中高亮：浅品牌色底 + 左侧强调条 ---------- */
+.cat-tree-table tbody tr.cat-row.is-selected {
+  background: var(--brand-weak);
+}
+.cat-tree-table tbody tr.cat-row.is-selected:hover {
+  background: var(--brand-weak);
+}
+.cat-tree-table tbody tr.cat-row.is-selected > td:first-child {
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+.cat-tree-table tbody tr.cat-row.is-selected .cat-name-link,
+.cat-tree-table tbody tr.cat-row.is-selected .cat-name-link:hover {
+  color: var(--brand-strong);
+  font-weight: 700;
+}
+
+/* 选中 + 右键菜单同时存在时，仍以选中态为准，避免高亮闪烁 */
+.cat-tree-table tbody tr.cat-row.is-selected.is-context {
+  background: var(--brand-weak);
+}
+
+/* ---------- 物料列表区块标题行 ---------- */
+.cat-material-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.cat-material-head-main { min-width: 0; }
+.cat-material-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text);
+  overflow-wrap: break-word;
+}
+.cat-material-sub {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.cat-material-head-side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.cat-material-count { white-space: nowrap; }
+.cat-material-count strong {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ---------- 区块容器间距（表格 / 分页沿用既有样式，不重定义） ---------- */
+/* 分组标题行与表格之间已有 border-bottom，这里只补卡片内部的收尾间距 */
+#catMaterialSection { scroll-margin-top: 12px; }
+.cat-material-host { min-width: 0; }
+
+/* 窄屏：标题行改为上下排列，数量与跳转链接换行不挤压表格 */
+@media (max-width: 640px) {
+  .cat-material-head { align-items: flex-start; flex-direction: column; }
+  .cat-material-head-side { width: 100%; gap: 10px; }
+}

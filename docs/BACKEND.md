@@ -43,6 +43,7 @@ python-multipart==0.0.20
   - `stock_out_orders` / `stock_out_items`（出库单）
   - `material_logs`（领用 / 入库 / 标记为空流水，只追加）
   - `user_visits`（成员访问记录，供超管通知面板）
+  - v1.7.0：`materials.jlc_no VARCHAR(64) NOT NULL DEFAULT ''`（嘉立创编号，安全追加；迁移脚本 `db/migrations/20261127_v170_jlc_no.sql`，后端启动时也会幂等检查补列）
 - 初始基础数据：[`db/init/02_seed.sql`](../db/init/02_seed.sql)
   - 9 个物料分类（基础元件、主控模块…）
   - 管理员账号不写死在 SQL 中，使用 `app.cli create-admin` 以 bcrypt 哈希创建（见第 12 项）

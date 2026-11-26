@@ -22,7 +22,7 @@
     appName: '硬件物料台账',
     clubName: '校内硬件社团',
     appDesc: '轻量化 ERP · 回收元器件统一台账',
-    version: 'v1.4.0',
+    version: 'v1.7.0',
 
     /** 开发期自动刷新（js/dev-reload.js 使用）。树莓派正式部署前改为 false */
     dev: true,
@@ -96,9 +96,12 @@
    */
   ERP.config.apiBase = (function () {
     if (window.ERP_API_BASE) return window.ERP_API_BASE;
-    if (window.location.protocol === 'file:') return 'http://10.34.126.41:8088/api';
-    if (window.location.port === '8090') return 'http://10.34.126.41:8088/api';
+    if (window.location.protocol === 'file:') return 'http://10.24.52.41:8088/api';
+    if (window.location.port === '8090') return 'http://10.24.52.41:8088/api';
     return '/api';
   })();
 })();
+
+
+
 

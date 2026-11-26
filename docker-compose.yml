@@ -50,7 +50,7 @@ services:
       args:
         BASE_IMAGE: ${IMAGE_PREFIX:-}python:3.12-slim-bookworm
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
-    image: linda_erp-backend:1.4.0
+    image: linda_erp-backend:1.7.0
     container_name: linda_erp_backend
     restart: unless-stopped
     network_mode: host
@@ -97,4 +97,6 @@ services:
       options:
         max-size: "20m"
         max-file: "3"
+
+
 

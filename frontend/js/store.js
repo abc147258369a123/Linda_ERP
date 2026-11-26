@@ -52,6 +52,7 @@
       dbId: raw.id,
       name: raw.name,
       model: raw.model || '',
+      jlcNo: raw.jlc_no || '',
       package: raw.package || '',
       spec: raw.spec || '',
       brand: raw.brand || '',
@@ -362,6 +363,7 @@
     var body = {
       name: payload.name,
       model: payload.model,
+      jlc_no: payload.jlcNo || '',
       package: payload.package || '',
       spec: payload.spec || '',
       brand: payload.brand || '',
@@ -381,6 +383,68 @@
     return body;
   }
 
+  /* ---------------- v1.5.0：搜索匹配模式（精确整词 / 模糊包含） ----------------
+   * 精确匹配规则与后端 backend/app/routers/materials.py 完全一致：
+   *   1. 关键词 trim + 小写；
+   *   2. 字段文本拆成「整词」：原文本 / 去掉常见物料后缀 / 去掉常见物料前缀 /
+   *      按分隔符（空格 · / , + - _ | 全角半角括号 / 方括号 / 书名号）切分；
+   *   3. 关键词与任一字段的任一整词全等即命中。
+   * 例：1K 命中「1K电阻」而不命中「91K电阻」；0603 命中封装「贴片0603」；
+   *     电阻 命中分类名「电阻」下的全部物料；1% 命中规格「1%」。
+   */
+  var EXACT_SUFFIXES = [
+    '电阻', '电容', '电感', '二极管', '三极管', '场效应管', '稳压器', '芯片', '模块',
+    '传感器', '连接器', '插座', '插头', '开关', '按键', '晶振', '排针', '排母',
+    '保险丝', '电位器', '光耦', '继电器', '变压器', '蜂鸣器', '电池', '风扇', '电机'
+  ];
+  var EXACT_PREFIXES = ['贴片', '直插', '贴片式', '插件'];
+  // 与后端 _SPLIT_RE = r"[\s·/,+\-_|（）()\[\]【】]+" 保持等价
+  var EXACT_SPLIT_RE = /[\s·/,+\-_|（）()\[\]【】]+/;
+
+  /** 字段文本 → 精确匹配用的「整词」数组（去重，保持首次出现顺序） */
+  function exactTokens(value) {
+    var text = String(value === null || value === undefined ? '' : value).trim().toLowerCase();
+    if (!text) return [];
+    var tokens = [text];
+    function push(token) {
+      if (token && tokens.indexOf(token) < 0) tokens.push(token);
+    }
+    // 去掉常见物料后缀：等价于后端 text.endswith(suffix) and len(text) > len(suffix)
+    EXACT_SUFFIXES.forEach(function (suffix) {
+      if (text.length > suffix.length && text.slice(-suffix.length) === suffix) {
+        push(text.slice(0, text.length - suffix.length));
+      }
+    });
+    // 去掉常见物料前缀：等价于后端 text.startswith(prefix) and len(text) > len(prefix)
+    EXACT_PREFIXES.forEach(function (prefix) {
+      if (text.length > prefix.length && text.slice(0, prefix.length) === prefix) {
+        push(text.slice(prefix.length));
+      }
+    });
+    text.split(EXACT_SPLIT_RE).forEach(push);
+    return tokens;
+  }
+
+  /**
+   * 精确匹配：物料任一字段（含分类名 / 分类路径）的整词与关键词全等即命中。
+   * 字段集合与后端一致（code/name/model/package/spec/brand/cabinet/slot/source/note/分类名），
+   * 前端额外带上分类路径与缓存里的 categoryName，便于分类名链命中。
+   */
+  function isExactMatch(material, keyword) {
+    var kw = String(keyword === null || keyword === undefined ? '' : keyword).trim().toLowerCase();
+    if (!kw) return true;
+    var fields = [
+      material.code, material.name, material.model, material.jlcNo, material.package, material.spec,
+      material.brand, material.cabinet, material.slot, material.source, material.note,
+      material.categoryName, categoryName(material.categoryId),
+      categoryPath(material.categoryId)
+    ];
+    for (var i = 0; i < fields.length; i += 1) {
+      if (exactTokens(fields[i]).indexOf(kw) >= 0) return true;
+    }
+    return false;
+  }
+
   var store = {
     load: load,
     refresh: refresh,
@@ -394,6 +458,12 @@
     categoryPath: categoryPath,
     isWarn: isWarn,
 
+    // v1.5.0：精确匹配内部函数（仅供测试 / 排查使用，不属于稳定对外 API）
+    _test: {
+      exactTokens: exactTokens,
+      isExactMatch: isExactMatch
+    },
+
     /**
      * 物料筛选 + 排序（内存缓存）
      * 兼容 v1.3.0 参数：q / mode / status('all'|'available'|'empty') /
@@ -403,6 +473,10 @@
      *   - categoryIds: [id,...] 分类集合过滤（通常传某大类及其全部子孙分类）
      *   - package: ''|值 封装精确过滤
      *   - sort 追加 'qtyAsc'|'qtyDesc'|'borrowDesc'|'borrowAsc'
+     * v1.5.0 新增参数：
+     *   - match: 'exact'|'contains'（默认 'contains'，保持旧调用方行为）
+     *     exact   = 整词精确匹配（规则见上方 exactTokens / isExactMatch）
+     *     contains= 原有字段包含匹配（indexOf）
      */
     listMaterials: function (options) {
       var opts = options || {};
@@ -413,9 +487,12 @@
       }
 
       var keyword = String(opts.q || '').trim().toLowerCase();
+      // 缺省 contains：封装下拉取数等旧调用不传 match，行为保持不变
+      var matchMode = opts.match === 'exact' ? 'exact' : 'contains';
       if (keyword) {
         list = list.filter(function (material) {
-          return [material.name, material.model, material.package, material.spec, material.brand,
+          if (matchMode === 'exact') return isExactMatch(material, keyword);
+          return [material.name, material.model, material.jlcNo, material.package, material.spec, material.brand,
             material.cabinet, material.slot, material.source, material.note,
             categoryName(material.categoryId)].some(function (field) {
             return field && String(field).toLowerCase().indexOf(keyword) >= 0;

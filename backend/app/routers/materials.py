@@ -1,6 +1,7 @@
 """物料档案接口。"""
 from __future__ import annotations
 
+import re
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -29,22 +30,87 @@ def _category_name(db: Session, category_id: int) -> str:
     return category.name if category else ""
 
 
-def _apply_filters(query, q: str, mode: str, status_value: str, category_id: int | None):
-    keyword = (q or "").strip()
-    if keyword:
-        like = f"%{keyword}%"
-        query = query.filter(
-            or_(
-                Material.name.like(like),
-                Material.model.like(like),
-                Material.package.like(like),
-                Material.brand.like(like),
-                Material.source.like(like),
-                Material.cabinet.like(like),
-                Material.slot.like(like),
-                Material.code.like(like),
-            )
-        )
+# ---------------------------------------------------------------------------
+# v1.5.0 搜索：精确匹配（默认）/ 模糊包含
+# ---------------------------------------------------------------------------
+# 精确模式把字段文本拆成"整词"再与关键词做全等比较：
+#   1K  → 名称「1K电阻」去掉常见物料后缀后 = 「1K」→ 命中；
+#   1K  → 「91K电阻」「51K电阻」的整词是「91K」「51K」→ 不命中；
+#   0603 → 封装「贴片0603」去掉「贴片」前缀 = 「0603」→ 命中；
+#   电阻 → 分类名「电阻」整词 → 命中该分类下全部物料。
+EXACT_SUFFIXES = (
+    "电阻", "电容", "电感", "二极管", "三极管", "场效应管", "稳压器", "芯片", "模块",
+    "传感器", "连接器", "插座", "插头", "开关", "按键", "晶振", "排针", "排母",
+    "保险丝", "电位器", "光耦", "继电器", "变压器", "蜂鸣器", "电池", "风扇", "电机",
+)
+EXACT_PREFIXES = ("贴片", "直插", "贴片式", "插件")
+_SPLIT_RE = re.compile(r"[\s·/,+\-_|（）()\[\]【】]+")
+
+
+def _exact_tokens(value: str) -> set[str]:
+    text = (value or "").strip().lower()
+    if not text:
+        return set()
+    tokens = {text}
+    for suffix in EXACT_SUFFIXES:
+        if text.endswith(suffix) and len(text) > len(suffix):
+            tokens.add(text[: -len(suffix)])
+    for prefix in EXACT_PREFIXES:
+        if text.startswith(prefix) and len(text) > len(prefix):
+            tokens.add(text[len(prefix):])
+    for part in _SPLIT_RE.split(text):
+        if part:
+            tokens.add(part)
+    return tokens
+
+
+def _category_paths(db: Session) -> dict[int, str]:
+    """分类 id → 完整路径（如 电阻 / 贴片电阻 / 0603），用于精确搜索按分类路径命中。"""
+    rows = db.query(Category.id, Category.name, Category.parent_id).all()
+    name_map = {int(cid): (name, parent_id) for cid, name, parent_id in rows}
+    cache: dict[int, str] = {}
+
+    def path_of(category_id, depth=0) -> str:
+        if category_id is None or depth > 16:
+            return ""
+        key = int(category_id)
+        if key in cache:
+            return cache[key]
+        name, parent_id = name_map.get(key, ("", None))
+        parent_path = path_of(parent_id, depth + 1) if parent_id is not None else ""
+        cache[key] = (parent_path + " / " + name).strip(" /") if parent_path else name
+        return cache[key]
+
+    for cid in name_map:
+        path_of(cid)
+    return cache
+
+
+def _material_exact_match(keyword: str, material: Material, category_path: str) -> bool:
+    kw = keyword.strip().lower()
+    if not kw:
+        return True
+    fields = (
+        material.code,
+        material.name,
+        material.model,
+        material.jlc_no,
+        material.package,
+        material.spec,
+        material.brand,
+        material.cabinet,
+        material.slot,
+        material.source,
+        material.note,
+        category_path,
+    )
+    for field in fields:
+        if kw in _exact_tokens(field):
+            return True
+    return False
+
+
+def _apply_scope_filters(query, mode: str, status_value: str, category_id: int | None):
     if mode in ("simple", "precise"):
         query = query.filter(Material.mode == mode)
     if status_value in ("available", "empty"):
@@ -52,6 +118,23 @@ def _apply_filters(query, q: str, mode: str, status_value: str, category_id: int
     if category_id:
         query = query.filter(Material.category_id == category_id)
     return query
+
+
+def _apply_contains_keyword(query, keyword: str):
+    like = f"%{keyword}%"
+    return query.filter(
+        or_(
+            Material.name.like(like),
+            Material.model.like(like),
+            Material.jlc_no.like(like),
+            Material.package.like(like),
+            Material.brand.like(like),
+            Material.source.like(like),
+            Material.cabinet.like(like),
+            Material.slot.like(like),
+            Material.code.like(like),
+        )
+    )
 
 
 def _duplicated(db: Session, name: str, model: str, exclude_id: int | None = None) -> bool:
@@ -66,7 +149,8 @@ def _duplicated(db: Session, name: str, model: str, exclude_id: int | None = Non
 
 @router.get("", summary="物料列表（搜索 / 筛选 / 分页）")
 def list_materials(
-    q: str = Query(default="", max_length=60),
+    q: str = Query(default="", max_length=80),
+    match: str = Query(default="contains", pattern="^(exact|contains)$", description="搜索模式：exact 精确匹配 / contains 模糊包含"),
     mode: str = Query(default=""),
     status_value: str = Query(default="", alias="status"),
     category_id: int | None = Query(default=None),
@@ -76,14 +160,30 @@ def list_materials(
     _: User = Depends(get_current_user),
 ):
     query = db.query(Material, Category.name).join(Category, Material.category_id == Category.id)
-    query = _apply_filters(query, q, mode, status_value, category_id)
-    total = query.count()
-    rows = (
-        query.order_by(Material.updated_at.desc(), Material.id.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
-    )
+    query = _apply_scope_filters(query, mode, status_value, category_id)
+    keyword = (q or "").strip()
+
+    if keyword and match == "exact":
+        # 精确匹配：物料总量级很小（数百条），先按筛选条件取全量再逐条做整词比对后分页
+        ordered = query.order_by(Material.updated_at.desc(), Material.id.desc()).all()
+        paths = _category_paths(db)
+        matched = [
+            row for row in ordered
+            if _material_exact_match(keyword, row[0], paths.get(int(row[0].category_id), row[1]))
+        ]
+        total = len(matched)
+        start = (page - 1) * page_size
+        rows = matched[start:start + page_size]
+    else:
+        if keyword:
+            query = _apply_contains_keyword(query, keyword)
+        total = query.count()
+        rows = (
+            query.order_by(Material.updated_at.desc(), Material.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
     # 领用次数（v1.4.0：列表排序 / 展示用，实时聚合 material_logs）
     material_ids = [material.id for material, _ in rows]
     borrow_counts: dict[int, int] = {}
@@ -137,6 +237,7 @@ def create_material(
         code=f"TMP-{uuid4().hex[:12].upper()}",
         name=payload.name.strip(),
         model=payload.model.strip(),
+        jlc_no=payload.jlc_no.strip(),
         package=payload.package.strip(),
         spec=payload.spec.strip(),
         brand=payload.brand.strip(),
@@ -199,7 +300,7 @@ def update_material(
     if _duplicated(db, str(next_name).strip(), str(next_model).strip(), exclude_id=material.id):
         raise HTTPException(status_code=409, detail="已存在同名同型号的物料档案")
 
-    for field in ("name", "model", "package", "spec", "brand", "cabinet", "slot", "source", "image", "note"):
+    for field in ("name", "model", "jlc_no", "package", "spec", "brand", "cabinet", "slot", "source", "image", "note"):
         if field in data and data[field] is not None:
             setattr(material, field, str(data[field]).strip())
     if "category_id" in data and data["category_id"] is not None:

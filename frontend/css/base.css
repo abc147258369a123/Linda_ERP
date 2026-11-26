@@ -12,8 +12,8 @@
   --border: #e2e8f0;
   --border-strong: #cbd5e1;
   --text: #1e293b;
-  --text-2: #5b6b7f;
-  --text-3: #94a3b8;
+  --text-2: #46535f;
+  --text-3: #687582;
   --brand: #2c6e8f;
   --brand-strong: #22566f;
   --brand-weak: #eaf2f6;
@@ -115,7 +115,7 @@ img { max-width: 100%; }
 
 /* ---------- 表单 ---------- */
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.label { font-size: 13px; font-weight: 600; color: var(--text); }
+.label { font-size: 13.5px; font-weight: 600; color: var(--text); }
 .label .req { color: var(--danger); margin-left: 2px; }
 .input, .select, .textarea {
   width: 100%;
@@ -610,8 +610,8 @@ select.select:disabled {
   --border: #ece2d2;
   --border-strong: #dcd1be;
   --text: #26313b;
-  --text-2: #5d6a75;
-  --text-3: #8593a0;
+  --text-2: #46535f;
+  --text-3: #687582;
   --brand: #2b7d6c;
   --brand-strong: #226658;
   --brand-weak: #ddefe8;
@@ -729,4 +729,122 @@ select.select:disabled {
 /* ---------- 无障碍：尊重减少动态偏好 ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* =========================================================================
+   v1.5.0 物料总览：搜索匹配模式切换（精确匹配 / 模糊包含）
+   -------------------------------------------------------------------------
+   - 与 .filter-bar 视觉一体：36px 高、紧贴搜索框右侧，窄屏可换行
+   - 两段式小按钮组：外层 muted 底 + 内层选中态用品牌色浅底（--brand-weak）
+   - 只使用现有配色变量，不改动 .input / .select 既有规则
+   ========================================================================= */
+.search-mode {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 36px;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+.search-mode button {
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .12s, color .12s;
+}
+.search-mode button:hover { background: var(--surface-3); color: var(--text); }
+.search-mode button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.search-mode button.is-active,
+.search-mode button[aria-pressed="true"] {
+  background: var(--brand-weak);
+  color: var(--brand-strong);
+  font-weight: 600;
+}
+
+/* 窄屏：模式组独占一行并等分按钮，避免挤压搜索框 / 下拉（.filter-bar 已有 flex-wrap） */
+@media (max-width: 640px) {
+  .filter-bar .search-mode { flex: 1 1 100%; justify-content: center; }
+  .filter-bar .search-mode button { flex: 1 1 0; }
+}
+
+/* =========================================================================
+   v1.6.0 物料分类「可输入下拉」（combobox）
+   用于新增/编辑物料页的一/二/三级分类：既可下拉选择，也可直接输入名称
+   ========================================================================= */
+.combo-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.combo { position: relative; }
+.combo-control { position: relative; }
+.combo-input { padding-right: 30px; }
+.combo-toggle {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.combo-toggle:hover { color: var(--brand-strong); background: var(--brand-weak); }
+.combo-toggle svg { transform: rotate(90deg); transition: transform .12s; }
+.combo.is-open .combo-toggle svg { transform: rotate(-90deg); }
+
+.combo-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .14);
+}
+.combo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.combo-item:hover,
+.combo-item.is-active { background: var(--brand-weak); color: var(--brand-strong); }
+.combo-item-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combo-item-tag { flex: none; font-size: 11px; color: var(--text-3); }
+.combo-empty { padding: 9px 10px; font-size: 12px; line-height: 1.5; color: var(--text-3); }
+.combo.is-disabled .combo-toggle { opacity: .45; cursor: not-allowed; }
+.combo.is-disabled .combo-input { background: var(--surface-3); }
+
+@media (max-width: 640px) {
+  .combo { flex: 1 1 100%; }
 }

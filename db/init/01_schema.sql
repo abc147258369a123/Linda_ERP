@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS materials (
   code        VARCHAR(20)   NOT NULL COMMENT '档案编号，如 M-0001',
   name        VARCHAR(60)   NOT NULL,
   model       VARCHAR(80)   NOT NULL COMMENT '料号 / 型号',
+  jlc_no      VARCHAR(64)   NOT NULL DEFAULT '' COMMENT '嘉立创编号',
   package     VARCHAR(40)   NOT NULL DEFAULT '',
   spec        VARCHAR(200)  NOT NULL DEFAULT '',
   brand       VARCHAR(40)   NOT NULL DEFAULT '',

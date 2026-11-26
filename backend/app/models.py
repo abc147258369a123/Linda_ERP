@@ -78,6 +78,7 @@ class Material(Base):
     code = Column(String(20), unique=True, nullable=False)
     name = Column(String(60), nullable=False, index=True)
     model = Column(String(80), nullable=False, index=True)
+    jlc_no = Column(String(64), nullable=False, default="", comment="嘉立创编号")
     package = Column(String(40), nullable=False, default="")
     spec = Column(String(200), nullable=False, default="")
     brand = Column(String(40), nullable=False, default="")

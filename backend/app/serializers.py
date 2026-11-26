@@ -60,6 +60,7 @@ def material_dict(material: Material, category_name: str = "", borrow_count: int
         "code": material.code,
         "name": material.name,
         "model": material.model,
+        "jlc_no": material.jlc_no or "",
         "package": material.package,
         "spec": material.spec,
         "brand": material.brand,

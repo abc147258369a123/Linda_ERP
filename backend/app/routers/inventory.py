@@ -41,7 +41,7 @@ def inventory(
     if keyword:
         like = f"%{keyword}%"
         query = query.filter(or_(
-            Material.name.like(like), Material.model.like(like), Material.code.like(like),
+            Material.name.like(like), Material.model.like(like), Material.jlc_no.like(like), Material.code.like(like),
             Material.source.like(like), Material.cabinet.like(like), Material.slot.like(like),
         ))
     if mode in ("simple", "precise"):
@@ -110,7 +110,7 @@ def logs(
     if keyword:
         like = f"%{keyword}%"
         query = query.filter(or_(
-            Material.name.like(like), Material.model.like(like), Material.code.like(like),
+            Material.name.like(like), Material.model.like(like), Material.jlc_no.like(like), Material.code.like(like),
             MaterialLog.borrower.like(like), MaterialLog.project.like(like),
             MaterialLog.note.like(like), MaterialLog.order_no.like(like),
         ))

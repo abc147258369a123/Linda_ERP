@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .config import settings
-from .db import get_db, wait_for_db
+from .db import engine, get_db, wait_for_db
 from .routers import auth, categories, dashboard, inventory, materials, settings as settings_router, stock, ui_settings, uploads, users
 
 LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
@@ -42,10 +42,29 @@ logger = logging.getLogger("linda_erp")
 Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
 
 
+def ensure_schema() -> None:
+    """安全追加结构变更：只补缺失列，不改已有字段。"""
+    with engine.begin() as conn:
+        exists = conn.execute(text(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS "
+            "WHERE TABLE_SCHEMA = DATABASE() "
+            "AND TABLE_NAME = 'materials' AND COLUMN_NAME = 'jlc_no'"
+        )).scalar()
+        if not exists:
+            conn.execute(text(
+                "ALTER TABLE materials ADD COLUMN jlc_no VARCHAR(64) "
+                "NOT NULL DEFAULT '' COMMENT '嘉立创编号' AFTER model"
+            ))
+            logger.info("数据库迁移：materials 表已追加 jlc_no 字段")
+        else:
+            logger.info("数据库检查：materials.jlc_no 已存在，无需变更")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     logger.info("启动 Linda_ERP 后端 v%s（环境=%s）", settings.app_version, settings.app_env)
     wait_for_db()
+    ensure_schema()
     logger.info("服务就绪：http://%s:%s", settings.app_host, settings.app_port)
     yield
     logger.info("Linda_ERP 后端停止")
